@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meme Card Game 🎮</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="screen active">
+            <div class="container">
+                <div class="login-box">
+                    <h1>🎮 Meme Card Game</h1>
+                    <p class="subtitle">Trò chơi bài meme online cực vui!</p>
+                    
+                    <div class="form-group">
+                        <input type="text" id="playerName" placeholder="Nhập tên của bạn" maxlength="20">
+                    </div>
+                    
+                    <div class="button-group">
+                        <button id="createGameBtn" class="btn btn-primary">➕ Tạo Game Mới</button>
+                        <button id="joinGameBtn" class="btn btn-secondary">🔗 Tham Gia Game</button>
+                    </div>
+                    
+                    <div id="joinGameForm" class="hidden">
+                        <div class="form-group">
+                            <input type="text" id="gameCodeInput" placeholder="Nhập mã game (ví dụ: abc123)">
+                        </div>
+                        <button id="confirmJoinBtn" class="btn btn-primary">Tham Gia</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Waiting Room -->
+        <div id="waitingScreen" class="screen">
+            <div class="container">
+                <div class="room-box">
+                    <h1>⏳ Phòng Chờ</h1>
+                    
+                    <div class="game-code-display">
+                        <p>Mã game:</p>
+                        <h2 id="gameCodeDisplay">---</h2>
+                        <p class="text-small">Chia sẻ mã này với bạn bè để họ tham gia</p>
+                    </div>
+                    
+                    <div class="players-list">
+                        <h3>👥 Người chơi ({playerCount}/{maxPlayers})</h3>
+                        <div id="playersList"></div>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button id="startGameBtn" class="btn btn-success" disabled>▶️ Bắt Đầu Game (Cần ≥2 người)</button>
+                        <button id="leaveGameBtn" class="btn btn-danger">❌ Rời Game</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Screen -->
+        <div id="gameScreen" class="screen">
+            <div class="game-container">
+                <!-- Header -->
+                <div class="game-header">
+                    <h1>🎮 Meme Card Game</h1>
+                    <div class="game-info">
+                        <span>Round: <strong id="roundNum">1</strong></span>
+                        <span>|</span>
+                        <span id="gameStatus">Đang chờ...</span>
+                    </div>
+                </div>
+
+                <!-- Main Game Area -->
+                <div class="game-main">
+                    <!-- Players Status -->
+                    <div class="players-panel">
+                        <h3>👥 Người Chơi</h3>
+                        <div id="playersStatus" class="players-list"></div>
+                    </div>
+
+                    <!-- Game Board -->
+                    <div class="game-board">
+                        <!-- Current Card Display -->
+                        <div id="cardDisplayArea" class="card-display-area hidden">
+                            <div class="card-being-played">
+                                <h3>Lá bài đang xét:</h3>
+                                <div id="currentCardContent" class="card-content"></div>
+                                <p id="cardPlayedBy" class="card-by"></p>
+                                <div id="votingInfo"></div>
+                            </div>
+                        </div>
+
+                        <!-- My Hand -->
+                        <div class="my-hand">
+                            <h3>🎴 Tay bài của bạn:</h3>
+                            <div id="myHandCards" class="cards-container"></div>
+                            <p id="handStatus" class="status-text"></p>
+                        </div>
+                    </div>
+
+                    <!-- Voting Panel -->
+                    <div id="votingPanel" class="voting-panel hidden">
+                        <h3>🗳️ Bình Chọn</h3>
+                        <p id="votingPrompt">Lá bài này có hợp lệ không?</p>
+                        <div class="voting-buttons">
+                            <button id="validBtn" class="btn btn-success">✅ Hợp Lệ</button>
+                            <button id="invalidBtn" class="btn btn-danger">❌ Không Hợp Lệ</button>
+                        </div>
+                        <div id="votesDisplay" class="votes-display"></div>
+                    </div>
+                </div>
+
+                <!-- Notifications -->
+                <div id="notificationBox" class="notification-box">
+                    <div id="notifications"></div>
+                </div>
+
+                <!-- Leave Button -->
+                <div class="game-footer">
+                    <button id="leaveGameBtnFooter" class="btn btn-danger">❌ Rời Game</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Modal -->
+        <div id="errorModal" class="modal hidden">
+            <div class="modal-content error-modal">
+                <h2>⚠️ Lỗi</h2>
+                <p id="errorMessage"></p>
+                <button class="btn btn-primary" onclick="closeErrorModal()">Đóng</button>
+            </div>
+        </div>
+
+        <!-- Winner Modal -->
+        <div id="winnerModal" class="modal hidden">
+            <div class="modal-content winner-modal">
+                <h2>🎉 Có Người Thắng!</h2>
+                <p id="winnerMessage"></p>
+                <button class="btn btn-primary" onclick="backToLogin()">Về Trang Chủ</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/client.js"></script>
+</body>
+</html>
