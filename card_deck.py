@@ -113,10 +113,10 @@ MEME_CARDS = [
 class Deck:
     """Quản lý bộ bài meme"""
     
-    def __init__(self):
-        self.cards = MEME_CARDS.copy()
-        random.shuffle(self.cards)
-        self.current_index = 0
+    def __init__(self, seed=None):
+        # Truyền seed để xáo bài tái lập được (dùng cho test)
+        self.rng = random.Random(seed)
+        self.reset()
     
     def draw_card(self):
         """Rút 1 lá bài"""
@@ -131,7 +131,7 @@ class Deck:
     def reset(self):
         """Reset bộ bài"""
         self.cards = MEME_CARDS.copy()
-        random.shuffle(self.cards)
+        self.rng.shuffle(self.cards)
         self.current_index = 0
     
     def draw_multiple(self, count):
