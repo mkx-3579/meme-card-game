@@ -95,7 +95,6 @@ socket.on('game_joined', (data) => {
     gameState.gameId = data.game_id;
     gameState.playerId = data.player_id;
     showScreen('waitingScreen');
-    addNotification(data.message);
     updateWaitingRoom();
 });
 
