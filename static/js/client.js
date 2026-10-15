@@ -1,6 +1,7 @@
 /* Meme Card Game - Client */
 
-const socket = io();
+// Server chỉ mở kết nối polling, nên không thử nâng lên WebSocket (tránh lỗi 400 trong console)
+const socket = io({ transports: ['polling'] });
 
 let gameState = {
     gameId: null,
@@ -14,7 +15,10 @@ let ui = {
     lastState: null,
     seenVotingId: 0,
     seenResultId: 0,
+    seenTopicId: 0,
     voteDeadline: null,
+    timerKey: null,
+    drumrollKey: null,
     timerHandle: null,
     lastTickSecond: null,
     winShown: false
@@ -84,7 +88,10 @@ class GameAudio {
     }
 
     play(name) {
-        this.playFile(this.files[name], name);
+        // Mỗi âm thanh có thể có vài bản: chọn ngẫu nhiên một bản cho đỡ nhàm
+        const variants = [].concat(this.files[name] || []);
+        const url = variants.length ? variants[Math.floor(Math.random() * variants.length)] : null;
+        this.playFile(url, name);
     }
 
     playMeme(card) {
@@ -114,13 +121,22 @@ class GameAudio {
 
     synth(name) {
         if (!this.ctx) return;
-        // [tần số, thời điểm bắt đầu, độ dài, dạng sóng]
+        // [tần số, thời điểm bắt đầu, độ dài, dạng sóng, tần số cuối (trượt), độ to]
+        // Dạng 'noise' = tiếng xào xạc (lọc quanh tần số), dùng cho tiếng quẹt bài, tiếng trống
+        const drumroll = Array.from({ length: 36 }, (_, i) =>
+            [180 + (i % 2) * 40, i * 0.045, 0.05, 'noise', null, 0.25 + i / 48]);
         const patterns = {
-            'card-play': [[520, 0, 0.06, 'triangle'], [780, 0.05, 0.08, 'triangle']],
+            // Lá bài vút ra rồi đập xuống bàn
+            'card-play': [[2500, 0, 0.16, 'noise', 600, 0.6], [110, 0.14, 0.12, 'sine', 50, 1.2], [1800, 0.14, 0.05, 'noise', null, 0.5]],
+            // Tiếng xào bài: nhiều tiếng quẹt ngắn liên tiếp
+            'deal': Array.from({ length: 6 }, (_, i) => [3000 - i * 150, i * 0.07, 0.06, 'noise', 1200, 0.5]),
             'vote': [[660, 0, 0.07, 'sine']],
-            'accept': [[523, 0, 0.1, 'triangle'], [659, 0.1, 0.1, 'triangle'], [784, 0.2, 0.18, 'triangle']],
-            'reject': [[200, 0, 0.18, 'sawtooth'], [150, 0.16, 0.25, 'sawtooth']],
+            'accept': [[523, 0, 0.1, 'triangle'], [659, 0.1, 0.1, 'triangle'], [784, 0.2, 0.18, 'triangle'], [1047, 0.3, 0.3, 'triangle']],
+            // Kèn buồn "wah wah wah waaah"
+            'reject': [[392, 0, 0.3, 'sawtooth', 370, 0.7], [370, 0.32, 0.3, 'sawtooth', 349, 0.7], [349, 0.64, 0.3, 'sawtooth', 330, 0.7], [330, 0.96, 0.7, 'sawtooth', 300, 0.7]],
             'tick': [[1000, 0, 0.03, 'square']],
+            'drumroll': drumroll.concat([[120, 36 * 0.045, 0.4, 'sine', 60, 1.4], [3000, 36 * 0.045, 0.4, 'noise', null, 0.6]]),
+            'topic': [[1319, 0, 0.25, 'sine'], [1760, 0.08, 0.35, 'sine']],
             'win': [[523, 0, 0.12, 'triangle'], [659, 0.12, 0.12, 'triangle'], [784, 0.24, 0.12, 'triangle'], [1047, 0.36, 0.35, 'triangle']],
             'your-turn': [[880, 0, 0.08, 'sine'], [1175, 0.1, 0.12, 'sine']]
         };
@@ -128,18 +144,43 @@ class GameAudio {
         if (!notes) return;
         try {
             const now = this.ctx.currentTime;
-            notes.forEach(([freq, start, length, type]) => {
-                const osc = this.ctx.createOscillator();
+            notes.forEach(([freq, start, length, type, endFreq, loud]) => {
                 const gain = this.ctx.createGain();
-                osc.type = type;
-                osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0.15 * this.volume, now + start);
-                gain.gain.exponentialRampToValueAtTime(0.0001, now + start + length);
-                osc.connect(gain).connect(this.ctx.destination);
-                osc.start(now + start);
-                osc.stop(now + start + length + 0.02);
+                const t0 = now + start;
+                gain.gain.setValueAtTime(0.15 * this.volume * (loud || 1), t0);
+                gain.gain.exponentialRampToValueAtTime(0.0001, t0 + length);
+                let source;
+                let tone;
+                if (type === 'noise') {
+                    source = this.ctx.createBufferSource();
+                    source.buffer = this.noiseBuffer();
+                    tone = this.ctx.createBiquadFilter();
+                    tone.type = 'bandpass';
+                    tone.Q.value = 1.2;
+                    source.connect(tone).connect(gain);
+                } else {
+                    source = this.ctx.createOscillator();
+                    source.type = type;
+                    tone = source;
+                    source.connect(gain);
+                }
+                tone.frequency.setValueAtTime(freq, t0);
+                if (endFreq) tone.frequency.exponentialRampToValueAtTime(endFreq, t0 + length);
+                gain.connect(this.ctx.destination);
+                source.start(t0);
+                source.stop(t0 + length + 0.02);
             });
         } catch (e) { /* bỏ qua */ }
+    }
+
+    noiseBuffer() {
+        if (!this.noise) {
+            const length = this.ctx.sampleRate;
+            this.noise = this.ctx.createBuffer(1, length, this.ctx.sampleRate);
+            const data = this.noise.getChannelData(0);
+            for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+        }
+        return this.noise;
     }
 }
 
@@ -450,12 +491,14 @@ function updateGameScreen(state) {
         document.getElementById('cardDisplayArea').classList.add('hidden');
     }
 
+    updateTopic(state);
+
     if (state.state === 'voting') {
         updateVotingPanel(state);
     } else {
         document.getElementById('votingPanel').classList.add('hidden');
         document.getElementById('voteOverlay').classList.add('hidden');
-        stopTimer();
+        if (state.state !== 'topic') stopTimer();
     }
 
     handleEvents(state, prev);
@@ -463,6 +506,21 @@ function updateGameScreen(state) {
 
 // Phát âm thanh / hiệu ứng theo thay đổi giữa 2 lần cập nhật
 function handleEvents(state, prev) {
+    // Vừa chia bài đầu ván
+    if (prev && prev.state === 'waiting' && state.state !== 'waiting') {
+        audio.play('deal');
+    }
+
+    // Có chủ đề mới cho vòng này
+    if (state.topic && state.topic_id !== ui.seenTopicId) {
+        const firstSeen = ui.seenTopicId === 0 && !prev;
+        ui.seenTopicId = state.topic_id;
+        if (!firstSeen) {
+            audio.play('topic');
+            replayAnimation(document.getElementById('topicBanner'), 'topic-in');
+        }
+    }
+
     // Lá mới được đánh ra
     if (state.state === 'voting' && state.voting_id !== ui.seenVotingId) {
         ui.seenVotingId = state.voting_id;
@@ -590,7 +648,8 @@ function updateMyHand(state, prev) {
 
     const isGameOver = state.state === 'game_end';
     const isVoting = state.state === 'voting';
-    const isMyTurn = !isGameOver && !isVoting && state.current_player_id === gameState.playerId;
+    const isTopic = state.state === 'topic';
+    const isMyTurn = !isGameOver && !isVoting && !isTopic && state.current_player_id === gameState.playerId;
 
     document.getElementById('myHand').classList.toggle('my-turn', isMyTurn);
 
@@ -601,8 +660,12 @@ function updateMyHand(state, prev) {
         statusEl.textContent = '🗳️ Đến lượt bạn bỏ phiếu!';
     } else if (isVoting) {
         statusEl.textContent = '🗳️ Đang chờ mọi người bỏ phiếu...';
+    } else if (isTopic) {
+        statusEl.textContent = state.current_player_id === gameState.playerId
+            ? '📢 Bạn ra đề trước, rồi đánh lá đầu tiên'
+            : `⏳ Đang chờ ${playerName(state, state.current_player_id)} ra đề...`;
     } else if (isMyTurn) {
-        statusEl.textContent = '👉 Lượt của bạn! Chọn 1 lá bài để đánh';
+        statusEl.textContent = '👉 Lượt của bạn! Chọn 1 ảnh hợp với chủ đề để đánh';
     } else {
         statusEl.textContent = `⏳ Đang chờ ${playerName(state, state.current_player_id)} đánh bài...`;
     }
@@ -628,7 +691,9 @@ function updateMyHand(state, prev) {
 
 function updateGameStatus(state) {
     const statusEl = document.getElementById('gameStatus');
-    if (state.state === 'playing') {
+    if (state.state === 'topic') {
+        statusEl.textContent = '📢 Ra đề';
+    } else if (state.state === 'playing') {
         statusEl.textContent = '⏳ Đang chơi';
     } else if (state.state === 'voting') {
         statusEl.textContent = '🗳️ Bỏ phiếu';
@@ -694,7 +759,7 @@ function updateVotingPanel(state) {
         invalidBtn.classList.remove('hidden');
         validBtn.disabled = false;
         invalidBtn.disabled = false;
-        prompt.textContent = 'Lá bài này có hợp lệ không?';
+        prompt.textContent = state.topic ? 'Ảnh này có hợp với chủ đề không?' : 'Lá bài này có hợp lệ không?';
     }
 
     document.getElementById('votesDisplay').textContent =
@@ -721,6 +786,7 @@ function updateVotingPanel(state) {
         }
         document.getElementById('overlayPlayedBy').textContent =
             `${playerName(state, state.current_card.played_by)} vừa đánh lá này`;
+        document.getElementById('overlayTopic').textContent = state.topic ? `📢 ${state.topic}` : '';
         document.getElementById('overlayHint').textContent = state.current_card.is_final_card
             ? '⚠️ Đây là LÁ CUỐI: chỉ cần 1/2 đồng ý là người đó thắng!'
             : 'Cần 3/4 số phiếu đồng ý để lá được chấp nhận.';
@@ -729,16 +795,79 @@ function updateVotingPanel(state) {
         overlay.classList.add('hidden');
     }
 
-    startTimer(state);
+    startTimer(state.vote_time_left, state.vote_seconds || 30, needsMyVote, 'vote-' + state.voting_id);
 }
 
-// ==================== Đồng hồ bỏ phiếu ====================
+// ==================== Chủ đề vòng ====================
 
-function startTimer(state) {
-    if (state.vote_time_left === null || state.vote_time_left === undefined) return;
-    ui.voteDeadline = Date.now() + state.vote_time_left * 1000;
-    ui.voteSeconds = state.vote_seconds || 30;
-    ui.timerNeedsTick = state.can_vote && (state.my_vote === null || state.my_vote === undefined);
+function updateTopic(state) {
+    const banner = document.getElementById('topicBanner');
+    const panel = document.getElementById('topicPanel');
+    const showBanner = state.topic && state.state !== 'topic' && state.state !== 'waiting';
+    banner.classList.toggle('hidden', !showBanner);
+    if (showBanner) {
+        document.getElementById('topicRound').textContent = `Chủ đề vòng ${state.round}`;
+        // textContent: chữ người chơi gõ không bao giờ được hiểu là HTML
+        document.getElementById('topicText').textContent = state.topic;
+        document.getElementById('topicBy').textContent = `ra đề bởi ${playerName(state, state.round_opener_id)}`;
+    }
+
+    if (state.state !== 'topic') {
+        panel.classList.add('hidden');
+        return;
+    }
+    panel.classList.remove('hidden');
+    const isSetter = state.current_player_id === gameState.playerId;
+    document.getElementById('topicPanelTitle').textContent = isSetter
+        ? `📢 Vòng ${state.round}: bạn ra chủ đề!`
+        : `📢 Vòng ${state.round}: ${playerName(state, state.current_player_id)} đang ra chủ đề...`;
+    document.getElementById('topicForm').classList.toggle('hidden', !isSetter);
+    document.getElementById('topicWaiting').classList.toggle('hidden', isSetter);
+    const input = document.getElementById('topicInput');
+    input.maxLength = state.topic_max_length || 100;
+    if (isSetter && panel.dataset.key !== String(state.topic_id)) {
+        panel.dataset.key = String(state.topic_id);
+        input.value = '';
+        input.focus();
+    }
+    startTimer(state.topic_time_left, state.topic_seconds || 45, isSetter, 'topic-' + state.topic_id);
+}
+
+function submitTopic() {
+    const input = document.getElementById('topicInput');
+    const topic = input.value.trim();
+    if (!topic) {
+        input.focus();
+        return;
+    }
+    socket.emit('set_topic', { topic });
+}
+
+function randomTopic() {
+    const list = window.TOPIC_SUGGESTIONS || [];
+    if (!list.length) return;
+    const input = document.getElementById('topicInput');
+    let pick = list[Math.floor(Math.random() * list.length)];
+    if (list.length > 1 && pick === input.value) pick = list[(list.indexOf(pick) + 1) % list.length];
+    input.value = pick;
+    input.focus();
+}
+
+document.getElementById('topicSubmitBtn').addEventListener('click', submitTopic);
+document.getElementById('topicDiceBtn').addEventListener('click', randomTopic);
+document.getElementById('topicInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') submitTopic();
+});
+
+// ==================== Đồng hồ (bỏ phiếu / ra đề) ====================
+
+function startTimer(timeLeft, totalSeconds, needsTick, key) {
+    if (timeLeft === null || timeLeft === undefined) return;
+    ui.voteDeadline = Date.now() + timeLeft * 1000;
+    ui.voteSeconds = totalSeconds;
+    ui.timerNeedsTick = needsTick;
+    if (ui.timerKey !== key) ui.lastTickSecond = null;
+    ui.timerKey = key;
     if (!ui.timerHandle) {
         ui.timerHandle = setInterval(renderTimer, 200);
     }
@@ -761,8 +890,14 @@ function renderTimer() {
         timer.querySelector('.timer-text').textContent = `⏰ ${seconds}s`;
         timer.classList.toggle('urgent', seconds <= 5);
     });
-    // Tíc tắc 5 giây cuối cho người chưa vote
-    if (ui.timerNeedsTick && seconds <= 5 && seconds > 0 && seconds !== ui.lastTickSecond) {
+    // Trống dồn 5 giây cuối khi bỏ phiếu, cho cả phòng
+    if (ui.timerKey && ui.timerKey.startsWith('vote-') && seconds <= 5 && seconds > 0
+            && ui.drumrollKey !== ui.timerKey) {
+        ui.drumrollKey = ui.timerKey;
+        audio.play('drumroll');
+    }
+    // Tíc tắc 3 giây cuối cho người còn phải làm gì đó (bỏ phiếu / ra đề)
+    if (ui.timerNeedsTick && seconds <= 3 && seconds > 0 && seconds !== ui.lastTickSecond) {
         ui.lastTickSecond = seconds;
         audio.play('tick');
     }
@@ -858,7 +993,10 @@ function backToLogin() {
         lastState: null,
         seenVotingId: 0,
         seenResultId: 0,
+        seenTopicId: 0,
         voteDeadline: null,
+        timerKey: null,
+        drumrollKey: null,
         timerHandle: null,
         lastTickSecond: null,
         winShown: false
