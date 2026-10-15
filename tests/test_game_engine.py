@@ -9,7 +9,7 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from game_engine import Game, GameState, HAND_SIZE  # noqa: E402
+from game_engine import Game, GameState, HAND_SIZE, VOTE_SECONDS  # noqa: E402
 
 SEED = 42
 
@@ -257,6 +257,78 @@ class TestStateForPlayer(unittest.TestCase):
         state_a = game.get_state_for_player('A')
         self.assertFalse(state_a['can_vote'])
         self.assertFalse(game.get_state_for_player('B')['my_vote'])
+
+
+class FakeClock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+class TestVoteTimer(unittest.TestCase):
+    def make(self):
+        clock = FakeClock()
+        game = Game('t', seed=SEED, clock=clock)
+        for name in 'ABC':
+            game.add_player(name, name)
+        game.start_game()
+        return game, clock
+
+    def test_time_left_counts_down(self):
+        game, clock = self.make()
+        self.assertIsNone(game.vote_time_left())
+        game.player_play_card('A', 0)
+        self.assertEqual(game.vote_time_left(), VOTE_SECONDS)
+        clock.now += 10
+        self.assertEqual(game.get_state()['vote_time_left'], VOTE_SECONDS - 10)
+
+    def test_expire_skips_only_missing_voters(self):
+        game, _ = self.make()
+        game.player_play_card('A', 0)
+        game.player_vote('B', True)
+        self.assertEqual(game.expire_votes(game.voting_id), ['C'])
+        result = game.end_voting()
+        # Chỉ còn phiếu của B (1/1) nên lá được chấp nhận
+        self.assertTrue(result['vote_result']['is_valid'])
+        self.assertEqual(result['vote_result']['total_votes'], 1)
+
+    def test_nobody_votes_means_rejected(self):
+        game, _ = self.make()
+        game.player_play_card('A', 0)
+        game.expire_votes(game.voting_id)
+        hand_before = len(game.players['A'].hand)
+        result = game.end_voting()
+        self.assertFalse(result['vote_result']['is_valid'])
+        self.assertEqual(len(game.players['A'].hand), hand_before + 1)
+        self.assertEqual(game.get_current_player().player_id, 'B')
+
+    def test_old_timer_does_not_touch_new_vote(self):
+        game, _ = self.make()
+        game.player_play_card('A', 0)
+        old_id = game.voting_id
+        vote_all(game, True)
+        game.end_voting()
+        game.player_play_card('B', 0)
+        self.assertEqual(game.expire_votes(old_id), [])
+        self.assertEqual(len(game.votes), 2)
+
+    def test_voters_list_hides_choices_until_result(self):
+        game, _ = self.make()
+        game.player_play_card('A', 0)
+        game.player_vote('B', False)
+        state = game.get_state()
+        self.assertEqual(state['voters'], [
+            {'player_id': 'B', 'voted': True},
+            {'player_id': 'C', 'voted': False},
+        ])
+        game.player_vote('C', True)
+        game.end_voting()
+        last = game.get_state()['last_result']
+        self.assertEqual(last['votes'], {'B': False, 'C': True})
+        self.assertEqual(last['played_by'], 'A')
+        self.assertEqual(game.get_state()['voters'], [])
 
 
 if __name__ == '__main__':

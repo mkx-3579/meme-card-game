@@ -273,8 +273,38 @@ body {
     text-align: center;
 }
 
+.game-header {
+    position: relative;
+}
+
 .game-header h1 {
     margin-bottom: 10px;
+}
+
+.settings-bar {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 8px;
+    font-size: 1.2em;
+    padding: 4px 8px;
+    cursor: pointer;
+}
+
+.icon-btn.off {
+    opacity: 0.4;
+}
+
+#volumeSlider {
+    width: 80px;
 }
 
 .game-info {
@@ -351,19 +381,6 @@ body {
     font-size: 1.1em;
 }
 
-.card-content {
-    background: rgba(255, 255, 255, 0.2);
-    padding: 20px;
-    border-radius: 10px;
-    font-size: 1.2em;
-    font-weight: 600;
-    margin-bottom: 15px;
-    min-height: 80px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
 .card-by {
     font-size: 0.9em;
     opacity: 0.8;
@@ -388,41 +405,24 @@ body {
 
 .cards-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
     gap: 10px;
     margin-bottom: 10px;
 }
 
 .card {
-    background: white;
-    border: 2px solid #ddd;
-    border-radius: 8px;
-    padding: 12px;
-    text-align: center;
     cursor: pointer;
-    transition: all 0.3s;
-    font-size: 0.85em;
-    font-weight: 500;
-    min-height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    -webkit-box-orient: vertical;
+    transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
 }
 
-.card:hover {
-    background: #667eea;
-    color: white;
-    transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+.card:hover:not(.disabled) {
+    transform: translateY(-8px) rotate(-1.5deg);
+    box-shadow: 0 12px 24px rgba(102, 126, 234, 0.35);
+    border-color: #667eea;
 }
 
 .card.disabled {
-    opacity: 0.5;
+    opacity: 0.55;
     cursor: not-allowed;
 }
 
@@ -578,7 +578,7 @@ body {
     }
     
     .cards-container {
-        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
     }
 }
 
@@ -595,9 +595,22 @@ body {
         padding: 20px;
     }
     
-    .card {
-        min-height: 80px;
-        font-size: 0.75em;
+    .meme-card.big {
+        max-width: 100%;
+    }
+
+    .settings-bar {
+        position: static;
+        justify-content: center;
+        margin-top: 10px;
+    }
+
+    .vote-box {
+        padding: 18px;
+    }
+
+    .overlay-buttons {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -619,4 +632,426 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
+}
+
+
+/* ==================== Lá bài meme ==================== */
+
+.meme-card {
+    background: white;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    text-align: center;
+}
+
+.meme-art {
+    position: relative;
+    background: #111;
+}
+
+.meme-art img,
+.meme-placeholder {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+}
+
+.meme-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    padding: 6px;
+}
+
+.meme-emoji {
+    font-size: 2.2em;
+    line-height: 1.2;
+}
+
+.meme-name {
+    font-size: 0.7em;
+    font-weight: 700;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.meme-caption {
+    padding: 8px;
+    margin-bottom: 8px;
+    font-size: 0.8em;
+    line-height: 1.25;
+    max-height: calc(3 * 1.25em + 8px);
+    font-weight: 600;
+    color: #333;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+}
+
+.meme-card.big {
+    width: 100%;
+    max-width: 380px;
+    margin: 0 auto;
+    border: 4px solid white;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+.meme-card.big .meme-emoji {
+    font-size: 4.5em;
+}
+
+.meme-card.big .meme-name {
+    font-size: 1em;
+}
+
+/* Chữ kiểu meme: trắng, viền đen, in hoa */
+.meme-text {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    font-family: Impact, 'Arial Black', 'Segoe UI', sans-serif;
+    font-size: 1.45em;
+    font-weight: 900;
+    color: white;
+    text-transform: uppercase;
+    line-height: 1.1;
+    text-shadow: 2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000,
+                 0 2px 0 #000, 2px 0 0 #000, 0 -2px 0 #000, -2px 0 0 #000;
+    word-wrap: break-word;
+}
+
+.meme-text.top {
+    top: 8px;
+}
+
+.meme-text.bottom {
+    bottom: 8px;
+}
+
+.meme-panels {
+    list-style: none;
+    counter-reset: panel;
+    padding: 10px 14px;
+    margin: 0;
+    color: #222;
+    text-align: left;
+    font-weight: 700;
+}
+
+.meme-panels li {
+    counter-increment: panel;
+    padding: 4px 0;
+    border-bottom: 1px dashed #ddd;
+}
+
+.meme-panels li:last-child {
+    border-bottom: none;
+}
+
+.meme-panels li::before {
+    content: counter(panel) ". ";
+    color: #667eea;
+}
+
+.stage {
+    position: relative;
+    margin-bottom: 15px;
+}
+
+/* ==================== Bỏ phiếu ==================== */
+
+.player-item.current {
+    outline: 2px solid #667eea;
+}
+
+.vote-badge {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 0.75em;
+    font-weight: 600;
+}
+
+.vote-badge.done {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.vote-badge.waiting {
+    background: #fef3c7;
+    color: #92400e;
+    animation: pulse 1.2s ease-in-out infinite;
+}
+
+.voter-list {
+    list-style: none;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.voter-list li {
+    background: white;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.9em;
+}
+
+.voter-list li.done {
+    color: #065f46;
+}
+
+.voter-list li.waiting {
+    color: #92400e;
+    font-weight: 600;
+}
+
+.timer {
+    position: relative;
+    height: 22px;
+    background: #fde68a;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+
+.timer-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 100%;
+    background: linear-gradient(90deg, #10b981, #f59e0b);
+    transition: width 0.2s linear;
+}
+
+.timer-text {
+    position: relative;
+    display: block;
+    text-align: center;
+    font-size: 0.8em;
+    font-weight: 700;
+    line-height: 22px;
+    color: #1f2937;
+}
+
+.timer.urgent .timer-fill {
+    background: #ef4444;
+}
+
+.timer.urgent {
+    animation: pulse 0.5s ease-in-out infinite;
+}
+
+.timer.big {
+    height: 28px;
+}
+
+.timer.big .timer-text {
+    line-height: 28px;
+    font-size: 0.95em;
+}
+
+.vote-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 900;
+    padding: 16px;
+}
+
+.vote-box {
+    background: white;
+    border-radius: 18px;
+    padding: 24px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 100%;
+    overflow-y: auto;
+    text-align: center;
+    box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+    animation: pop-in 0.35s cubic-bezier(.2, 1.4, .4, 1);
+}
+
+.vote-box h2 {
+    color: #764ba2;
+    margin-bottom: 6px;
+}
+
+.overlay-by {
+    color: #555;
+    margin-bottom: 12px;
+}
+
+.overlay-hint {
+    margin: 12px 0;
+    color: #92400e;
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.overlay-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.btn-huge {
+    font-size: 1.2em;
+    padding: 16px;
+}
+
+/* ==================== Hiệu ứng ==================== */
+
+.my-hand.my-turn {
+    box-shadow: 0 0 0 3px #667eea, 0 0 24px rgba(102, 126, 234, 0.6);
+    animation: glow 1.4s ease-in-out infinite;
+}
+
+.card.deal-in {
+    animation: deal-in 0.45s ease-out both;
+}
+
+.card.flying {
+    transform: translateY(-60px) scale(1.1);
+    opacity: 0;
+    transition: transform 0.3s ease-in, opacity 0.3s ease-in;
+}
+
+.card-enter .meme-card {
+    animation: card-enter 0.6s cubic-bezier(.2, 1.2, .4, 1);
+}
+
+.shake .meme-card {
+    animation: shake 0.5s;
+}
+
+.stamp {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    padding: 10px 22px;
+    border: 5px solid;
+    border-radius: 10px;
+    font-size: 1.8em;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    background: rgba(255, 255, 255, 0.92);
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.stamp.ok {
+    color: #059669;
+    border-color: #059669;
+}
+
+.stamp.no {
+    color: #dc2626;
+    border-color: #dc2626;
+}
+
+.stamp.stamp-in {
+    animation: stamp-in 0.4s cubic-bezier(.3, 1.6, .5, 1);
+}
+
+.player-item {
+    position: relative;
+}
+
+#playersStatus .player-item {
+    flex-wrap: wrap;
+    gap: 4px 6px;
+}
+
+#playersStatus .player-score {
+    width: 100%;
+    margin-top: 0;
+}
+
+.float-point {
+    position: absolute;
+    right: 10px;
+    top: 0;
+    color: #f59e0b;
+    font-weight: 900;
+    animation: float-up 1.5s ease-out forwards;
+    pointer-events: none;
+}
+
+.confetti {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1100;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+@keyframes glow {
+    0%, 100% { box-shadow: 0 0 0 3px #667eea, 0 0 12px rgba(102, 126, 234, 0.4); }
+    50% { box-shadow: 0 0 0 3px #764ba2, 0 0 28px rgba(118, 75, 162, 0.7); }
+}
+
+@keyframes deal-in {
+    from { opacity: 0; transform: translateY(40px) rotate(8deg) scale(0.8); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes card-enter {
+    0% { opacity: 0; transform: translateY(160px) rotateY(90deg) scale(0.6); }
+    60% { opacity: 1; transform: translateY(-10px) rotateY(0) scale(1.04); }
+    100% { transform: none; }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-10px) rotate(-2deg); }
+    40%, 80% { transform: translateX(10px) rotate(2deg); }
+}
+
+@keyframes stamp-in {
+    from { opacity: 0; transform: translate(-50%, -50%) rotate(-12deg) scale(2.5); }
+    to { opacity: 1; transform: translate(-50%, -50%) rotate(-12deg) scale(1); }
+}
+
+@keyframes float-up {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-40px); }
+}
+
+@keyframes pop-in {
+    from { opacity: 0; transform: scale(0.85); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* Tắt hiệu ứng (nút ✨ hoặc máy đặt "giảm chuyển động") */
+body.no-fx *,
+body.no-fx *::before,
+body.no-fx *::after {
+    animation: none !important;
+    transition: none !important;
+}
+
+@media (max-width: 768px) {
+    .stamp {
+        font-size: 1.1em;
+        padding: 6px 12px;
+        border-width: 4px;
+    }
 }

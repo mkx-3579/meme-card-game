@@ -1,11 +1,13 @@
 """
 Game engine cho Meme Card Game
 """
+import time
 from enum import Enum
 from card_deck import Deck
 
 HAND_SIZE = 5
 MIN_PLAYERS = 2
+VOTE_SECONDS = 30  # Thời gian tối đa cho một lượt bỏ phiếu
 
 class GameState(Enum):
     WAITING = "waiting"
@@ -46,7 +48,7 @@ class Player:
         return data
 
 class Game:
-    def __init__(self, game_id, max_players=8, seed=None):
+    def __init__(self, game_id, max_players=8, seed=None, clock=time.monotonic):
         self.game_id = game_id
         self.max_players = max_players
         self.players = {}  # Thứ tự thêm vào = thứ tự lượt chơi
@@ -58,6 +60,10 @@ class Game:
         self.votes = {}  # {player_id: True/False/None}
         self.host_id = None
         self.winner_id = None
+        self.clock = clock  # Truyền đồng hồ giả để test hẹn giờ
+        self.voting_id = 0  # Tăng mỗi lần mở bỏ phiếu, để hẹn giờ cũ không chốt nhầm lượt mới
+        self.vote_deadline = None
+        self.last_result = None  # Kết quả lượt vote gần nhất (ai vote gì) để hiện cho cả phòng
 
     @property
     def game_started(self):
@@ -105,6 +111,7 @@ class Game:
                 # Hủy lá đang xét vì người đánh đã rời phòng
                 self.current_card = None
                 self.votes = {}
+                self.vote_deadline = None
                 self.state = GameState.PLAYING
             self.current_player_index %= len(self.players)
 
@@ -128,6 +135,7 @@ class Game:
         self.current_card = None
         self.votes = {}
         self.winner_id = None
+        self.last_result = None
         return True
 
     def get_current_player(self):
@@ -165,6 +173,8 @@ class Game:
         }
 
         self.state = GameState.VOTING
+        self.voting_id += 1
+        self.vote_deadline = self.clock() + VOTE_SECONDS
         return True
 
     def player_vote(self, player_id, is_valid):
@@ -177,6 +187,24 @@ class Game:
 
         self.votes[player_id] = bool(is_valid)
         return True
+
+    def expire_votes(self, voting_id=None):
+        """Hết giờ: ai chưa bỏ phiếu thì không được tính. Trả về danh sách người bị bỏ qua.
+
+        voting_id: chỉ hết giờ nếu vẫn đúng lượt vote đó (hẹn giờ cũ thì bỏ qua)."""
+        if self.state != GameState.VOTING:
+            return []
+        if voting_id is not None and voting_id != self.voting_id:
+            return []
+        skipped = [pid for pid, v in self.votes.items() if v is None]
+        for pid in skipped:
+            del self.votes[pid]
+        return skipped
+
+    def vote_time_left(self):
+        if self.state != GameState.VOTING or self.vote_deadline is None:
+            return None
+        return max(0, round(self.vote_deadline - self.clock()))
 
     def check_voting_complete(self):
         """Kiểm tra xem tất cả mọi người đã bỏ phiếu chưa"""
@@ -196,7 +224,8 @@ class Game:
             required_votes = (total_votes * 3) / 4
 
         return {
-            "is_valid": valid_votes >= required_votes,
+            # Không ai bỏ phiếu (hết giờ) thì lá bị từ chối
+            "is_valid": total_votes > 0 and valid_votes >= required_votes,
             "valid_votes": valid_votes,
             "total_votes": total_votes,
             "required_votes": required_votes,
@@ -211,6 +240,15 @@ class Game:
         result = self.calculate_vote_result()
         played_by = self.current_card["played_by"]
         player = self.players[played_by]
+        self.last_result = {
+            "voting_id": self.voting_id,
+            "played_by": played_by,
+            "is_valid": result["is_valid"],
+            "valid_votes": result["valid_votes"],
+            "total_votes": result["total_votes"],
+            "votes": dict(self.votes),
+        }
+        self.vote_deadline = None
 
         if result["is_valid"]:
             player.score += 1
@@ -244,6 +282,7 @@ class Game:
         self.state = GameState.GAME_END
         self.winner_id = winner_id
         self.votes = {}
+        self.vote_deadline = None
 
     def get_state(self):
         """Lấy trạng thái game hiện tại (không kèm phiếu của từng người)"""
@@ -259,7 +298,16 @@ class Game:
             "current_player_id": current_player.player_id if current_player else None,
             "current_card": self.current_card,
             "votes_count": sum(1 for v in self.votes.values() if v is not None) if voting else 0,
-            "total_voters": len(self.votes) if voting else 0
+            "total_voters": len(self.votes) if voting else 0,
+            # Ai đã/chưa bỏ phiếu (không lộ họ chọn gì cho tới khi chốt)
+            "voters": [
+                {"player_id": pid, "voted": v is not None}
+                for pid, v in self.votes.items()
+            ] if voting else [],
+            "voting_id": self.voting_id,
+            "vote_time_left": self.vote_time_left(),
+            "vote_seconds": VOTE_SECONDS,
+            "last_result": self.last_result,
         }
 
     def get_state_for_player(self, player_id):
