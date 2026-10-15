@@ -369,4 +369,4 @@ def emit_to_room(game_id, event, data):
 if __name__ == '__main__':
     print("🎮 Meme Card Game Server đang chạy...")
     print("Truy cập: http://localhost:5000")
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))

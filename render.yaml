@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: meme-card-game
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # Chỉ 1 worker: trạng thái phòng chơi nằm trong bộ nhớ của tiến trình
+    startCommand: gunicorn -w 1 --threads 100 --timeout 120 --bind 0.0.0.0:$PORT wsgi:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: SECRET_KEY
+        generateValue: true

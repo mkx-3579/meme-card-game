@@ -21,6 +21,21 @@ python app.py
 
 Sau đó truy cập: `http://localhost:5000`
 
+## Đưa lên web để chơi với bạn bè
+
+Game chạy được trên [Render](https://render.com) (gói miễn phí), không cần chung mạng LAN:
+
+1. Tạo tài khoản Render và kết nối GitHub.
+2. Chọn **New → Blueprint**, chọn repo `meme-card-game`. Render đọc file `render.yaml` và tự cài đặt.
+3. Đợi build xong, Render cho một địa chỉ dạng `https://meme-card-game-xxxx.onrender.com`. Gửi link đó cho bạn bè, một người tạo phòng rồi gửi mã phòng.
+
+Lưu ý:
+- Gói miễn phí tự ngủ sau khoảng 15 phút không ai vào; lần mở đầu tiên sau đó mất chừng 1 phút để thức dậy.
+- Phòng chơi nằm trong bộ nhớ máy chủ, nên khi máy chủ ngủ hoặc khởi động lại thì các phòng đang chơi sẽ mất.
+- Mỗi lần push lên nhánh `main`, Render tự cập nhật bản mới.
+
+Chạy giống trên máy chủ (Linux/macOS): `gunicorn -w 1 --threads 100 wsgi:app`. Chỉ dùng 1 worker vì trạng thái phòng nằm trong bộ nhớ.
+
 ## Luật chơi
 
 1. Cần 2–8 người chơi. Người tạo phòng (👑) là người bấm bắt đầu; đã bắt đầu thì không vào thêm được
@@ -36,7 +51,7 @@ Sau đó truy cập: `http://localhost:5000`
 
 ## Ảnh và âm thanh meme
 
-- **Lá bài bằng ảnh (khuyên dùng):** thả ảnh meme bất kỳ (jpg, png, gif…) vào `static/memes/cards/`. Có ảnh ở đó thì mỗi ảnh là một lá bài, hiện nguyên tấm, không in chữ. Thư mục này không lên GitHub nên cập nhật game không mất ảnh.
+- **Lá bài bằng ảnh (khuyên dùng):** thả ảnh meme bất kỳ (jpg, png, gif…) vào `static/memes/cards/`. Có ảnh ở đó thì mỗi ảnh là một lá bài, hiện nguyên tấm, không in chữ. Bộ ảnh trong thư mục này được đưa lên GitHub để bản web có bài; nên nén ảnh (rộng tối đa ~700px) cho trang tải nhanh.
 
 - Ảnh: thả ảnh mẫu meme (ảnh trống) vào `static/memes/img/`, đặt tên theo mẫu, ví dụ `drake.jpg`.
 - Âm thanh: `static/sounds/` (âm giao diện như `accept.mp3`, âm riêng từng meme như `meme-stonks.mp3`). Danh sách tên file ở [static/sounds/README.md](static/sounds/README.md).
