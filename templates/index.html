@@ -25,6 +25,7 @@
             <symbol id="i-exit" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
             <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></symbol>
             <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></symbol>
+            <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
             <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
         </defs>
     </svg>
@@ -90,8 +91,36 @@
                     <span class="box-tab">Phòng chờ</span>
                     <div class="game-code-display">
                         <span class="code-label">Mã phòng</span>
-                        <h2 id="gameCodeDisplay">---</h2>
-                        <p class="code-hint">Gửi mã này cho bạn bè để vào cùng bàn</p>
+                        <div class="code-copy-row">
+                            <h2 id="gameCodeDisplay">---</h2>
+                            <button id="copyCodeBtn" class="btn btn-white btn-icon copy-btn" type="button" aria-label="Copy mã phòng" title="Copy mã phòng">
+                                <svg class="ico" aria-hidden="true"><use href="#i-copy"/></svg>
+                            </button>
+                        </div>
+                        <p id="copyCodeHint" class="code-hint">Gửi mã này cho bạn bè để vào cùng bàn</p>
+                    </div>
+
+                    <div class="room-settings">
+                        <h3>Cài đặt ván</h3>
+                        <div class="settings-grid">
+                            <div class="field">
+                                <label for="playSecondsSelect">Thời gian chọn ảnh</label>
+                                <select id="playSecondsSelect" data-setting="play_seconds" data-unit="giây"></select>
+                            </div>
+                            <div class="field">
+                                <label for="voteSecondsSelect">Thời gian bỏ phiếu</label>
+                                <select id="voteSecondsSelect" data-setting="vote_seconds" data-unit="giây"></select>
+                            </div>
+                            <div class="field">
+                                <label for="topicSecondsSelect">Thời gian ra đề</label>
+                                <select id="topicSecondsSelect" data-setting="topic_seconds" data-unit="giây"></select>
+                            </div>
+                            <div class="field">
+                                <label for="maxRoundsSelect">Số vòng</label>
+                                <select id="maxRoundsSelect" data-setting="max_rounds" data-unit="vòng"></select>
+                            </div>
+                        </div>
+                        <p id="settingsNote" class="settings-note"></p>
                     </div>
 
                     <div class="players-list">
@@ -117,7 +146,8 @@
                 <div class="game-info">
                     <span class="chip c-yellow">Vòng <strong id="roundNum">1</strong></span>
                     <span id="gameStatus" class="chip c-lightpink">Đang chờ...</span>
-                    <span id="roomChip" class="chip chip-dashed"></span>
+                    <span id="roundLimitChip" class="chip c-lightpink hidden"></span>
+                    <button id="roomChip" class="chip chip-dashed chip-btn" type="button" title="Copy mã phòng"></button>
                 </div>
                 <div class="settings-bar">
                     <button id="muteBtn" class="icon-btn" type="button" aria-label="Tắt âm thanh" title="Bật/tắt âm thanh">
@@ -136,6 +166,10 @@
                 <aside class="players-panel">
                     <h2 class="panel-title">Người chơi</h2>
                     <div id="playersStatus" class="players-list"></div>
+                    <div id="spectatorsBox" class="spectators-box hidden">
+                        <h3 class="spectators-title">Chờ ván sau</h3>
+                        <ul id="spectatorsList" class="spectators-list"></ul>
+                    </div>
                 </aside>
 
                 <!-- Bàn chơi -->
@@ -191,10 +225,17 @@
                     </section>
 
                     <section id="myHand" class="my-hand" aria-label="Tay bài của bạn">
+                        <p id="spectatorNote" class="spectator-note hidden">Bạn vào khi ván đang chạy nên đang ngồi xem. Hết ván này bạn sẽ được vào chơi cùng mọi người.</p>
                         <div class="hand-head">
+                            <div id="drawPile" class="draw-pile" aria-hidden="true" title="Chồng bài úp">
+                                <div class="card-back pile-1"></div>
+                                <div class="card-back pile-2"></div>
+                                <div class="card-back pile-3"></div>
+                            </div>
                             <h2 class="panel-title">Tay bài của bạn</h2>
                             <p id="handStatus" class="status-text"></p>
                         </div>
+                        <div id="playTimer" class="timer play-timer hidden"><div class="timer-fill"></div><span class="timer-text"></span></div>
                         <div id="myHandCards" class="cards-container"></div>
                     </section>
                 </main>
@@ -277,7 +318,8 @@
                 <h2 id="winnerTitle" class="dialog-tab c-green">Có người thắng!</h2>
                 <div class="modal-icon c-yellow" aria-hidden="true"><svg class="ico"><use href="#i-trophy"/></svg></div>
                 <p id="winnerMessage"></p>
-                <button class="btn btn-yellow btn-lg" type="button" onclick="leaveGame()">Về trang chủ</button>
+                <p class="winner-note">Phòng vẫn giữ nguyên, cả phòng sẽ tự về phòng chờ để chơi ván tiếp.</p>
+                <button id="winnerLobbyBtn" class="btn btn-yellow btn-lg" type="button">Về phòng chờ</button>
             </div>
         </div>
     </div>
