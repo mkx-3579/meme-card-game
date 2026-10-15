@@ -447,24 +447,50 @@ class TestRoomLifecycle(unittest.TestCase):
 
     def test_only_host_in_lobby_can_change_settings(self):
         game = make_game('AB', start=False)
-        self.assertFalse(game.update_settings('B', time_limit=10))
-        self.assertFalse(game.update_settings('A', time_limit=7))  # không có trong lựa chọn
-        self.assertTrue(game.update_settings('A', time_limit=10, max_rounds=3))
-        self.assertEqual((game.time_limit, game.max_rounds), (10, 3))
+        self.assertFalse(game.update_settings('B', play_seconds=60))
+        self.assertFalse(game.update_settings('A', play_seconds=7))  # không có trong lựa chọn
+        self.assertFalse(game.update_settings('A', time_limit=10))  # cài đặt không tồn tại
+        self.assertTrue(game.update_settings('A', play_seconds=60, vote_seconds=15,
+                                             topic_seconds=20, max_rounds=3))
+        self.assertEqual(game.settings(), {'play_seconds': 60, 'vote_seconds': 15,
+                                           'topic_seconds': 20, 'max_rounds': 3})
         game.start_game()
-        self.assertFalse(game.update_settings('A', time_limit=5))
+        self.assertFalse(game.update_settings('A', play_seconds=30))
 
-    def test_time_limit_ends_game_with_fewest_cards_winning(self):
-        game, clock = self.make(time_limit=5)
-        self.assertEqual(game.match_time_left(), 300)
+    def test_custom_times_are_used(self):
+        game, clock = self.make(play_seconds=20, vote_seconds=15, topic_seconds=60)
+        self.assertEqual(game.topic_time_left(), 60)
         set_topic(game)
-        play_turn(game, True)  # A còn 4 lá, B còn 5
-        self.assertFalse(game.expire_match(game.game_number - 1))  # hẹn giờ ván cũ
-        clock.now += 300
-        self.assertTrue(game.expire_match(game.game_number))
-        self.assertEqual(game.state, GameState.GAME_END)
-        self.assertEqual(game.winner_id, 'A')
-        self.assertEqual(game.end_reason, 'time')
+        self.assertEqual(game.play_time_left(), 20)
+        game.player_play_card('A', 0)
+        self.assertIsNone(game.play_time_left())
+        self.assertEqual(game.vote_time_left(), 15)
+
+    def test_play_timeout_skips_turn(self):
+        game, clock = self.make('ABC')
+        set_topic(game)
+        turn = game.turn_id
+        self.assertIsNone(game.expire_turn(turn - 1))  # hẹn giờ cũ
+        clock.now += game.play_seconds
+        self.assertEqual(game.expire_turn(turn), 'A')
+        self.assertEqual(game.state, GameState.PLAYING)
+        self.assertEqual(game.get_current_player().player_id, 'B')
+        self.assertEqual(len(game.players['A'].hand), HAND_SIZE)
+        self.assertEqual(game.play_time_left(), game.play_seconds)
+        self.assertEqual(game.expire_turn(game.turn_id), 'B')
+        self.assertEqual(game.expire_turn(game.turn_id), 'C')
+        # Cả vòng mất lượt thì sang vòng mới, B ra đề
+        self.assertEqual(game.state, GameState.TOPIC)
+        self.assertEqual(game.current_round, 2)
+        self.assertEqual(game.get_current_player().player_id, 'B')
+
+    def test_current_player_leaving_restarts_play_timer(self):
+        game, clock = self.make('ABC')
+        set_topic(game)
+        clock.now += 10
+        game.remove_player('A')
+        self.assertEqual(game.get_current_player().player_id, 'B')
+        self.assertEqual(game.play_time_left(), game.play_seconds)
 
     def test_round_limit_ends_game(self):
         game, _ = self.make(max_rounds=3)
@@ -493,10 +519,10 @@ class TestRoomLifecycle(unittest.TestCase):
         self.assertEqual(len(game.players['D'].hand), HAND_SIZE)
 
     def test_lobby_keeps_settings_and_host(self):
-        game, _ = self.make('AB', time_limit=10, max_rounds=5)
+        game, _ = self.make('AB', play_seconds=60, max_rounds=5)
         game.remove_player('B')
         game.reset_to_lobby()
-        self.assertEqual((game.time_limit, game.max_rounds), (10, 5))
+        self.assertEqual((game.play_seconds, game.max_rounds), (60, 5))
         self.assertEqual(game.host_id, 'A')
         self.assertIsNone(game.current_card)
         self.assertEqual(game.players['A'].hand, [])

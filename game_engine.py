@@ -10,12 +10,22 @@ from topics import TOPIC_SUGGESTIONS
 HAND_SIZE = 5
 MIN_PLAYERS = 2
 REJECT_DRAW = 2  # Lá bị từ chối: người đánh rút thêm bấy nhiêu lá (phạt)
+# Thời gian mặc định, chủ phòng chỉnh được ở phòng chờ
+PLAY_SECONDS = 45  # Thời gian chọn ảnh meme để đánh, hết giờ thì mất lượt
 VOTE_SECONDS = 30  # Thời gian tối đa cho một lượt bỏ phiếu
 TOPIC_SECONDS = 45  # Thời gian người mở vòng gõ chủ đề, hết giờ thì lấy đề ngẫu nhiên
 TOPIC_MAX_LENGTH = 100
-# Chủ phòng chọn giới hạn cho mỗi ván (0 = không giới hạn)
-TIME_LIMIT_CHOICES = (0, 5, 10, 15, 20, 30)  # phút
+# Các lựa chọn chủ phòng được chỉnh (giây; số vòng 0 = không giới hạn)
+PLAY_SECONDS_CHOICES = (20, 30, 45, 60, 90)
+VOTE_SECONDS_CHOICES = (15, 20, 30, 45, 60)
+TOPIC_SECONDS_CHOICES = (20, 30, 45, 60, 90)
 MAX_ROUNDS_CHOICES = (0, 3, 5, 8, 10, 15)
+SETTING_CHOICES = {
+    "play_seconds": PLAY_SECONDS_CHOICES,
+    "vote_seconds": VOTE_SECONDS_CHOICES,
+    "topic_seconds": TOPIC_SECONDS_CHOICES,
+    "max_rounds": MAX_ROUNDS_CHOICES,
+}
 
 class GameState(Enum):
     WAITING = "waiting"
@@ -81,15 +91,18 @@ class Game:
         self.topic_deadline = None
         self.timed_topic_id = 0  # Server đã hẹn giờ cho bước ra đề nào rồi
         # Cài đặt ván do chủ phòng chỉnh ở phòng chờ, giữ nguyên qua các ván
-        self.time_limit = 0  # phút
+        self.play_seconds = PLAY_SECONDS
+        self.vote_seconds = VOTE_SECONDS
+        self.topic_seconds = TOPIC_SECONDS
         self.max_rounds = 0
         # Người vào khi ván đang chạy: ngồi chờ, hết ván thì vào chơi
         self.spectators = {}  # {player_id: name}, thứ tự vào = thứ tự được xếp chỗ
         self.game_number = 0  # Tăng mỗi ván, để hẹn giờ của ván cũ không đụng ván mới
-        self.match_deadline = None
-        self.timed_match_id = 0  # Server đã hẹn giờ hết ván cho ván nào rồi
+        self.turn_id = 0  # Tăng mỗi lượt đánh, để hẹn giờ cũ không bỏ lượt nhầm người
+        self.play_deadline = None
+        self.timed_turn_id = 0  # Server đã hẹn giờ cho lượt đánh nào rồi
         self.timed_lobby_id = 0  # Server đã hẹn giờ quay về phòng chờ cho ván nào rồi
-        self.end_reason = None  # 'last_card' / 'players_left' / 'time' / 'rounds'
+        self.end_reason = None  # 'last_card' / 'players_left' / 'rounds'
 
     @property
     def game_started(self):
@@ -124,18 +137,19 @@ class Game:
         self.spectators[player_id] = name
         return True
 
-    def update_settings(self, player_id, time_limit=None, max_rounds=None):
-        """Chủ phòng chỉnh thời gian / số vòng cho ván tiếp theo"""
+    def settings(self):
+        return {key: getattr(self, key) for key in SETTING_CHOICES}
+
+    def update_settings(self, player_id, **changes):
+        """Chủ phòng chỉnh thời gian chọn ảnh / bỏ phiếu / ra đề và số vòng cho ván tiếp theo"""
         if player_id != self.host_id or self.state != GameState.WAITING:
             return False
-        if time_limit is not None and time_limit not in TIME_LIMIT_CHOICES:
+        changes = {k: v for k, v in changes.items() if v is not None}
+        if any(k not in SETTING_CHOICES or v not in SETTING_CHOICES[k]
+               for k, v in changes.items()):
             return False
-        if max_rounds is not None and max_rounds not in MAX_ROUNDS_CHOICES:
-            return False
-        if time_limit is not None:
-            self.time_limit = time_limit
-        if max_rounds is not None:
-            self.max_rounds = max_rounds
+        for key, value in changes.items():
+            setattr(self, key, value)
         return True
 
     def reset_to_lobby(self):
@@ -158,7 +172,7 @@ class Game:
         self.vote_deadline = None
         self.topic = None
         self.topic_deadline = None
-        self.match_deadline = None
+        self.play_deadline = None
         self.last_result = None
         return True
 
@@ -210,6 +224,9 @@ class Game:
             elif self.state == GameState.TOPIC:
                 # Người ra đề rời đi: người kế tiếp ra đề, tính lại giờ
                 self._open_topic()
+            else:
+                # Người kế tiếp nhận lượt đánh, tính lại giờ
+                self._open_turn()
 
         # Người rời đi không còn phải bỏ phiếu
         self.votes.pop(player_id, None)
@@ -234,7 +251,6 @@ class Game:
         self.last_result = None
         self.end_reason = None
         self.game_number += 1
-        self.match_deadline = self.clock() + self.time_limit * 60 if self.time_limit else None
         self._open_topic()
         return True
 
@@ -243,7 +259,37 @@ class Game:
         self.state = GameState.TOPIC
         self.topic = None
         self.topic_id += 1
-        self.topic_deadline = self.clock() + TOPIC_SECONDS
+        self.topic_deadline = self.clock() + self.topic_seconds
+        self.play_deadline = None
+
+    def _open_turn(self):
+        """Mở lượt đánh cho người đang tới lượt, bắt đầu đếm giờ chọn ảnh"""
+        self.state = GameState.PLAYING
+        self.turn_id += 1
+        self.play_deadline = self.clock() + self.play_seconds
+
+    def _advance_turn(self):
+        """Sang người kế tiếp; hết vòng thì sang vòng mới (ra đề mới)"""
+        self.current_player_index += 1
+        if self.current_player_index >= len(self.players):
+            self._next_round()
+        else:
+            self._open_turn()
+
+    def expire_turn(self, turn_id=None):
+        """Hết giờ chọn ảnh: người đang tới lượt mất lượt. Trả về người bị bỏ qua, hoặc None"""
+        if self.state != GameState.PLAYING:
+            return None
+        if turn_id is not None and turn_id != self.turn_id:
+            return None
+        skipped = self.get_current_player()
+        self._advance_turn()
+        return skipped.player_id if skipped else None
+
+    def play_time_left(self):
+        if self.state != GameState.PLAYING or self.play_deadline is None:
+            return None
+        return max(0, round(self.play_deadline - self.clock()))
 
     def _next_round(self):
         if self.max_rounds and self.current_round >= self.max_rounds:
@@ -279,7 +325,7 @@ class Game:
             return False
         self.topic = topic
         self.topic_deadline = None
-        self.state = GameState.PLAYING
+        self._open_turn()
         return True
 
     def expire_topic(self, topic_id=None):
@@ -333,8 +379,9 @@ class Game:
         }
 
         self.state = GameState.VOTING
+        self.play_deadline = None
         self.voting_id += 1
-        self.vote_deadline = self.clock() + VOTE_SECONDS
+        self.vote_deadline = self.clock() + self.vote_seconds
         return True
 
     def player_vote(self, player_id, is_valid):
@@ -427,10 +474,7 @@ class Game:
                 player.add_card(card)
 
         # Chuyển sang người chơi tiếp theo, hết một vòng thì sang vòng mới (ra đề mới)
-        self.current_player_index += 1
-        self.state = GameState.PLAYING
-        if self.current_player_index >= len(self.players):
-            self._next_round()
+        self._advance_turn()
 
         return {
             "success": False,
@@ -450,25 +494,11 @@ class Game:
         self.current_card = None
         self._finish(self.leader_id(), reason)
 
-    def expire_match(self, game_number=None):
-        """Hết thời gian ván: ai ít bài nhất thắng. Trả về True nếu vừa kết thúc ván"""
-        if not self.is_running or self.match_deadline is None:
-            return False
-        if game_number is not None and game_number != self.game_number:
-            return False
-        self._finish_by_limit('time')
-        return True
-
-    def match_time_left(self):
-        if not self.is_running or self.match_deadline is None:
-            return None
-        return max(0, round(self.match_deadline - self.clock()))
-
     def _finish(self, winner_id, reason='last_card'):
         self.state = GameState.GAME_END
         self.winner_id = winner_id
         self.end_reason = reason
-        self.match_deadline = None
+        self.play_deadline = None
         self.votes = {}
         self.vote_deadline = None
         self.topic_deadline = None
@@ -495,18 +525,19 @@ class Game:
             ] if voting else [],
             "voting_id": self.voting_id,
             "vote_time_left": self.vote_time_left(),
-            "vote_seconds": VOTE_SECONDS,
+            "vote_seconds": self.vote_seconds,
             "last_result": self.last_result,
             "topic": self.topic,
             "round_opener_id": self._round_opener_id(),
             "topic_id": self.topic_id,
             "topic_time_left": self.topic_time_left(),
-            "topic_seconds": TOPIC_SECONDS,
+            "topic_seconds": self.topic_seconds,
+            "turn_id": self.turn_id,
+            "play_time_left": self.play_time_left(),
+            "play_seconds": self.play_seconds,
             "topic_max_length": TOPIC_MAX_LENGTH,
-            "settings": {"time_limit": self.time_limit, "max_rounds": self.max_rounds},
-            "time_limit_choices": list(TIME_LIMIT_CHOICES),
-            "max_rounds_choices": list(MAX_ROUNDS_CHOICES),
-            "match_time_left": self.match_time_left(),
+            "settings": self.settings(),
+            "setting_choices": {k: list(v) for k, v in SETTING_CHOICES.items()},
             "end_reason": self.end_reason,
             "game_number": self.game_number,
             "spectators": [{"player_id": pid, "name": name}

@@ -3,7 +3,7 @@ Meme Card Game - Flask Backend với SocketIO
 """
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from game_engine import Game, GameState, VOTE_SECONDS, TOPIC_SECONDS, REJECT_DRAW
+from game_engine import Game, GameState, REJECT_DRAW, SETTING_CHOICES
 from topics import TOPIC_SUGGESTIONS
 from card_deck import SOUND_DIR, SOUND_EXTS, find_asset
 import os
@@ -167,7 +167,7 @@ def handle_start_game():
 
 @socketio.on('update_settings')
 def handle_update_settings(data):
-    """Chủ phòng chỉnh thời gian / số vòng cho ván tiếp theo"""
+    """Chủ phòng chỉnh thời gian chọn ảnh / bỏ phiếu / ra đề và số vòng cho ván tiếp theo"""
     player_id = request.sid
     data = data or {}
     with game_lock:
@@ -175,8 +175,8 @@ def handle_update_settings(data):
         if game is None:
             return
 
-        if not game.update_settings(player_id, to_int(data.get('time_limit')),
-                                    to_int(data.get('max_rounds'))):
+        changes = {key: to_int(data.get(key)) for key in SETTING_CHOICES}
+        if not game.update_settings(player_id, **changes):
             emit('error', {'message': 'Chỉ chủ phòng mới chỉnh được cài đặt, và chỉ khi đang ở phòng chờ'})
         emit_game_state_to_room(game.game_id)
 
@@ -213,7 +213,8 @@ def handle_play_card(data):
                 'message': f'{player.name} đã đánh 1 lá bài{final_text}. Bây giờ mọi người bình chọn!'
             })
             emit_game_state_to_room(game.game_id)
-            socketio.start_background_task(vote_timer, game.game_id, game.voting_id)
+            socketio.start_background_task(vote_timer, game.game_id, game.voting_id,
+                                           game.vote_seconds)
         else:
             emit('error', {'message': 'Không thể đánh bài. Đảm bảo đó là lượt của bạn'})
 
@@ -312,7 +313,6 @@ def announce_winner(game):
     reasons = {
         'last_card': f'{winner.name} đã thắng với lá bài cuối!',
         'players_left': f'{winner.name} thắng vì những người khác đã rời game!',
-        'time': f'⏰ Hết giờ! {winner.name} thắng vì còn ít bài nhất ({len(winner.hand)} lá)',
         'rounds': f'Hết {game.max_rounds} vòng! {winner.name} thắng vì còn ít bài nhất ({len(winner.hand)} lá)',
     }
     emit_to_room(game.game_id, 'notification', {
@@ -320,21 +320,35 @@ def announce_winner(game):
         'type': 'winner'
     })
 
-def ensure_match_timer(game):
-    """Ván có giới hạn thời gian thì hẹn giờ đúng một lần mỗi ván"""
-    if game.is_running and game.match_deadline is not None \
-            and game.timed_match_id != game.game_number:
-        game.timed_match_id = game.game_number
-        socketio.start_background_task(match_timer, game.game_id, game.game_number,
-                                       game.match_time_left())
+def ensure_play_timer(game):
+    """Mỗi lượt đánh hẹn giờ chọn ảnh đúng một lần"""
+    if game.state == GameState.PLAYING and game.play_deadline is not None \
+            and game.timed_turn_id != game.turn_id:
+        game.timed_turn_id = game.turn_id
+        socketio.start_background_task(play_timer, game.game_id, game.turn_id,
+                                       game.play_time_left())
 
-def match_timer(game_id, game_number, seconds):
+def play_timer(game_id, turn_id, seconds):
+    """Hết giờ chọn ảnh thì người đó mất lượt để ván không bị kẹt"""
     socketio.sleep(seconds)
     with game_lock:
         game = games.get(game_id)
-        if game is None or not game.expire_match(game_number):
+        if game is None:
             return
-        announce_winner(game)
+        skipped = game.expire_turn(turn_id)
+        if skipped is None:
+            return
+        name = game.players[skipped].name if skipped in game.players else 'Ai đó'
+        emit_to_room(game_id, 'notification', {
+            'message': f'⏰ Hết giờ chọn ảnh, {name} mất lượt'
+        })
+        if game.state == GameState.GAME_END:
+            announce_winner(game)
+        elif game.state == GameState.TOPIC:
+            opener = game.get_current_player()
+            emit_to_room(game_id, 'notification', {
+                'message': f'Vòng {game.current_round}! {opener.name}, hãy ra chủ đề mới'
+            })
         emit_game_state_to_room(game_id)
 
 def ensure_lobby_timer(game):
@@ -366,11 +380,12 @@ def ensure_topic_timer(game):
     """Mỗi lần mở bước ra đề thì hẹn giờ đúng một lần"""
     if game.state == GameState.TOPIC and game.timed_topic_id != game.topic_id:
         game.timed_topic_id = game.topic_id
-        socketio.start_background_task(topic_timer, game.game_id, game.topic_id)
+        socketio.start_background_task(topic_timer, game.game_id, game.topic_id,
+                                       game.topic_seconds)
 
-def topic_timer(game_id, topic_id):
+def topic_timer(game_id, topic_id, seconds):
     """Hết giờ ra đề thì lấy một đề ngẫu nhiên để ván không bị kẹt"""
-    socketio.sleep(TOPIC_SECONDS)
+    socketio.sleep(seconds)
     with game_lock:
         game = games.get(game_id)
         if game is None or game.expire_topic(topic_id) is None:
@@ -378,9 +393,9 @@ def topic_timer(game_id, topic_id):
         announce_topic(game, timed_out=True)
         emit_game_state_to_room(game_id)
 
-def vote_timer(game_id, voting_id):
+def vote_timer(game_id, voting_id, seconds):
     """Hết giờ bỏ phiếu thì bỏ qua người chưa vote và chốt kết quả"""
-    socketio.sleep(VOTE_SECONDS)
+    socketio.sleep(seconds)
     with game_lock:
         game = games.get(game_id)
         if game is None:
@@ -435,7 +450,7 @@ def emit_game_state_to_room(game_id):
     if game_id in games:
         game = games[game_id]
         ensure_topic_timer(game)
-        ensure_match_timer(game)
+        ensure_play_timer(game)
         ensure_lobby_timer(game)
 
         # Gửi player-specific state cho mỗi người, kể cả người đang chờ ván sau

@@ -666,6 +666,10 @@ input[type="text"]:focus {
     gap: 12px;
 }
 
+.settings-grid .field label {
+    font-size: 14px;
+}
+
 select {
     width: 100%;
     height: 50px;
@@ -910,10 +914,6 @@ select:focus {
     background: var(--yellow);
 }
 
-#matchTimerChip.urgent {
-    background: var(--red);
-    color: white;
-}
 
 .spectator-note {
     margin-bottom: 10px;
@@ -1275,14 +1275,83 @@ select:focus {
 
 .hand-head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 6px 12px;
 }
 
 .hand-head .panel-title {
+    flex: 1;
     font-size: 24px;
+}
+
+.play-timer {
+    margin-top: 10px;
+}
+
+/* --- Mặt sau lá bài + chồng bài úp nhỏ cạnh tay bài --- */
+
+.card-back {
+    border: 3px solid var(--ink);
+    border-radius: 10px;
+    background:
+        radial-gradient(circle at 50% 50%, var(--yellow) 0 30%, transparent 31%),
+        repeating-linear-gradient(45deg, var(--pink) 0 8px, #ff7aa0 8px 16px);
+}
+
+.card-back::after {
+    content: 'M';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--ink);
+}
+
+.draw-pile {
+    position: relative;
+    width: 46px;
+    height: 60px;
+    flex-shrink: 0;
+}
+
+.draw-pile .card-back {
+    position: absolute;
+    inset: 0;
+}
+
+.draw-pile .pile-1 { transform: translate(4px, 4px) rotate(5deg); }
+.draw-pile .pile-2 { transform: translate(2px, 2px) rotate(-3deg); }
+.draw-pile .pile-3 { box-shadow: var(--shadow-sm); }
+
+.draw-pile.drawing .pile-3 {
+    animation: pile-bump 0.3s ease-out;
+}
+
+/* Lá bay từ chồng bài vào tay: mặt sau che lá tới khi lật qua nửa vòng */
+.card-cover {
+    position: absolute;
+    inset: 0;
+    z-index: 4;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.card-cover.card-back {
+    border-width: 0;
+}
+
+.card-cover.card-back::after {
+    font-size: 34px;
+}
+
+.flip-host {
+    perspective: 900px;
 }
 
 .status-text {
@@ -1921,6 +1990,12 @@ select:focus {
     animation: shake 0.5s;
 }
 
+@keyframes pile-bump {
+    0% { transform: none; }
+    40% { transform: translateY(-6px) rotate(-4deg); }
+    100% { transform: none; }
+}
+
 @keyframes pulse {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.6; }
@@ -2351,6 +2426,11 @@ body.no-fx *::after {
 
     #gameCodeDisplay {
         font-size: 40px;
+    }
+
+    .draw-pile {
+        width: 36px;
+        height: 46px;
     }
 
     .settings-grid {

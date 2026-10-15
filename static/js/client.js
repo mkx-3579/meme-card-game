@@ -342,15 +342,15 @@ function copyRoomCode() {
 document.getElementById('copyCodeBtn').addEventListener('click', copyRoomCode);
 document.getElementById('roomChip').addEventListener('click', copyRoomCode);
 
+const settingSelects = document.querySelectorAll('select[data-setting]');
+
 function sendSettings() {
-    socket.emit('update_settings', {
-        time_limit: Number(document.getElementById('timeLimitSelect').value),
-        max_rounds: Number(document.getElementById('maxRoundsSelect').value)
-    });
+    const data = {};
+    settingSelects.forEach(select => { data[select.dataset.setting] = Number(select.value); });
+    socket.emit('update_settings', data);
 }
 
-document.getElementById('timeLimitSelect').addEventListener('change', sendSettings);
-document.getElementById('maxRoundsSelect').addEventListener('change', sendSettings);
+settingSelects.forEach(select => select.addEventListener('change', sendSettings));
 
 document.getElementById('winnerLobbyBtn').addEventListener('click', () => {
     document.getElementById('winnerModal').classList.add('hidden');
@@ -610,17 +610,18 @@ function fillSelect(select, choices, value, unit) {
 }
 
 function updateSettingsPanel(state) {
-    const settings = state.settings || { time_limit: 0, max_rounds: 0 };
+    const settings = state.settings || {};
+    const choices = state.setting_choices || {};
     const isHost = state.host_id === gameState.playerId;
-    const timeSelect = document.getElementById('timeLimitSelect');
-    const roundsSelect = document.getElementById('maxRoundsSelect');
-    fillSelect(timeSelect, state.time_limit_choices || [0], settings.time_limit, 'phút');
-    fillSelect(roundsSelect, state.max_rounds_choices || [0], settings.max_rounds, 'vòng');
-    timeSelect.disabled = !isHost;
-    roundsSelect.disabled = !isHost;
-    document.getElementById('settingsNote').textContent = isHost
-        ? 'Hết giờ hoặc hết số vòng mà chưa ai hết bài thì người còn ít bài nhất thắng.'
-        : 'Chủ phòng chọn thời gian và số vòng. Hết giờ hoặc hết vòng thì người còn ít bài nhất thắng.';
+    settingSelects.forEach(select => {
+        const key = select.dataset.setting;
+        if (!(key in settings)) return;
+        fillSelect(select, choices[key] || [settings[key]], settings[key], select.dataset.unit);
+        select.disabled = !isHost;
+    });
+    document.getElementById('settingsNote').textContent =
+        (isHost ? '' : 'Chủ phòng chỉnh các mục này. ')
+        + 'Hết giờ chọn ảnh thì mất lượt. Hết số vòng mà chưa ai hết bài thì người còn ít bài nhất thắng.';
 }
 
 function updateStartButton(state) {
@@ -644,37 +645,72 @@ function updateStartButton(state) {
     }
 }
 
-// Giới hạn ván: "Vòng 2/5" và đồng hồ đếm ngược cả ván
-let matchTimer = { deadline: null, handle: null };
-
+// Giới hạn số vòng hiện trên thanh đầu trang
 function updateMatchLimits(state) {
     const settings = state.settings || {};
     const roundChip = document.getElementById('roundLimitChip');
     roundChip.classList.toggle('hidden', !settings.max_rounds);
     if (settings.max_rounds) roundChip.textContent = `Tối đa ${settings.max_rounds} vòng`;
-
-    const chip = document.getElementById('matchTimerChip');
-    const left = state.match_time_left;
-    if (left === null || left === undefined) {
-        matchTimer.deadline = null;
-        chip.classList.add('hidden');
-        clearInterval(matchTimer.handle);
-        matchTimer.handle = null;
-        return;
-    }
-    matchTimer.deadline = Date.now() + left * 1000;
-    chip.classList.remove('hidden');
-    if (!matchTimer.handle) matchTimer.handle = setInterval(renderMatchTimer, 500);
-    renderMatchTimer();
 }
 
-function renderMatchTimer() {
-    if (!matchTimer.deadline) return;
-    const seconds = Math.max(0, Math.ceil((matchTimer.deadline - Date.now()) / 1000));
-    const mm = Math.floor(seconds / 60);
-    const ss = String(seconds % 60).padStart(2, '0');
-    document.getElementById('matchTimerText').textContent = `Còn ${mm}:${ss}`;
-    document.getElementById('matchTimerChip').classList.toggle('urgent', seconds <= 30);
+// ==================== Hiệu ứng lật bài ====================
+
+/**
+ * Lá bài bay úp từ `from` (chồng bài / chỗ ngồi người đánh) tới chỗ của nó,
+ * rồi lật ngửa ra. Mặt sau là một lớp phủ, tắt đi đúng lúc lá nghiêng 90 độ.
+ */
+function flipReveal(el, opts) {
+    if (!effectsOn || !el || !el.animate) return;
+    opts = opts || {};
+    const duration = opts.duration || 700;
+    const delay = opts.delay || 0;
+    const flyPart = opts.from ? 0.5 : 0.15;  // phần thời gian bay úp, còn lại để lật
+
+    const cover = document.createElement('div');
+    cover.className = 'card-cover card-back';
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    el.appendChild(cover);
+
+    let dx = 0, dy = 0, scale = 1;
+    if (opts.from) {
+        const a = opts.from.getBoundingClientRect();
+        const b = el.getBoundingClientRect();
+        if (a.width && b.width) {
+            dx = (a.left + a.width / 2) - (b.left + b.width / 2);
+            dy = (a.top + a.height / 2) - (b.top + b.height / 2);
+            scale = Math.max(0.2, Math.min(1, a.width / b.width));
+        }
+    } else {
+        dy = opts.lift || -40;
+        scale = 0.85;
+    }
+    // Giữ độ nghiêng sẵn có của lá (tay bài xòe) ở cuối hiệu ứng
+    const base = getComputedStyle(el).transform;
+    const tail = base && base !== 'none' ? ' ' + base : '';
+    const at = (x, y, s, deg) => `perspective(900px) translate(${x}px, ${y}px) scale(${s}) rotateY(${deg}deg)${tail}`;
+    const flipMid = flyPart + (1 - flyPart) / 2;
+
+    const anim = el.animate([
+        { transform: at(dx, dy, scale, 180), offset: 0 },
+        { transform: at(0, -14, 1.04, 180), offset: flyPart },
+        { transform: at(0, -14, 1.04, 90), offset: flipMid },
+        { transform: at(0, 0, 1, 0), offset: 1 }
+    ], { duration, delay, easing: 'ease-out', fill: 'backwards' });
+    const coverAnim = cover.animate([
+        { opacity: 1, offset: 0 },
+        { opacity: 1, offset: flipMid },
+        { opacity: 0, offset: Math.min(1, flipMid + 0.001) },
+        { opacity: 0, offset: 1 }
+    ], { duration, delay, fill: 'both' });
+    const cleanup = () => cover.remove();
+    anim.onfinish = cleanup;
+    anim.oncancel = cleanup;
+    coverAnim.oncancel = cleanup;
+}
+
+function bumpDrawPile(delay) {
+    const pile = document.getElementById('drawPile');
+    setTimeout(() => replayAnimation(pile, 'drawing'), delay);
 }
 
 function updateSpectators(state) {
@@ -724,7 +760,16 @@ function updateGameScreen(state) {
     } else {
         document.getElementById('votingPanel').classList.add('hidden');
         document.getElementById('voteOverlay').classList.add('hidden');
-        if (state.state !== 'topic') stopTimer();
+        if (state.state !== 'topic' && state.state !== 'playing') stopTimer();
+    }
+
+    // Đồng hồ chọn ảnh của người đang tới lượt
+    const playTimer = document.getElementById('playTimer');
+    const playing = state.state === 'playing' && state.play_time_left !== null && state.play_time_left !== undefined;
+    playTimer.classList.toggle('hidden', !playing);
+    if (playing) {
+        const isMyTurn = state.current_player_id === gameState.playerId;
+        startTimer(state.play_time_left, state.play_seconds || 45, isMyTurn, 'play-' + state.turn_id);
     }
 
     handleEvents(state, prev);
@@ -751,7 +796,11 @@ function handleEvents(state, prev) {
     if (state.state === 'voting' && state.voting_id !== ui.seenVotingId) {
         ui.seenVotingId = state.voting_id;
         audio.playMeme(state.current_card && state.current_card.content);
-        replayAnimation(document.getElementById('currentCardContent'), 'card-enter');
+        // Lá bay úp từ chỗ người đánh xuống bàn rồi lật ngửa
+        const seat = document.querySelector(
+            `#playersStatus .player-item[data-player-id="${CSS.escape(state.current_card.played_by)}"]`);
+        flipReveal(document.querySelector('#currentCardContent .meme-card'),
+            { from: seat, duration: 900 });
         if (state.can_vote) setTimeout(() => audio.play('your-turn'), 700);
     }
 
@@ -926,14 +975,12 @@ function updateMyHand(state, prev) {
     const prevMe = prev && prev.players.find(p => p.player_id === gameState.playerId);
     const prevIds = new Set(((prevMe && prevMe.hand) || []).map(c => c && c.id));
 
+    const newCards = [];
     (myPlayer.hand || []).forEach((card, index) => {
         const el = renderMemeCard(card, 'small');
         el.classList.add('card');
         if (!isMyTurn) el.classList.add('disabled');
-        if (prev && card && !prevIds.has(card.id) && effectsOn) {
-            el.classList.add('deal-in');
-            el.style.animationDelay = `${index * 60}ms`;
-        }
+        if (prev && card && !prevIds.has(card.id)) newCards.push(el);
         el.setAttribute('aria-label', `Lá bài ${index + 1}${card && card.name ? ': ' + card.name : ''}`);
         if (isMyTurn) {
             el.setAttribute('role', 'button');
@@ -949,6 +996,14 @@ function updateMyHand(state, prev) {
             el.setAttribute('aria-disabled', 'true');
         }
         container.appendChild(el);
+    });
+
+    // Lá mới bốc: lần lượt bay từ chồng bài úp vào tay rồi lật ngửa
+    const pile = document.getElementById('drawPile');
+    newCards.forEach((el, i) => {
+        const delay = 250 + i * 220;
+        flipReveal(el, { from: pile, delay, duration: 750 });
+        if (effectsOn) bumpDrawPile(delay);
     });
 }
 
@@ -1048,7 +1103,8 @@ function updateVotingPanel(state) {
     // Bảng vote lớn giữa màn hình cho người chưa vote
     if (needsMyVote) {
         const overlayCard = document.getElementById('overlayCard');
-        if (overlayCard.dataset.key !== String(state.voting_id)) {
+        const freshCard = overlayCard.dataset.key !== String(state.voting_id);
+        if (freshCard) {
             overlayCard.dataset.key = String(state.voting_id);
             overlayCard.innerHTML = '';
             overlayCard.appendChild(renderMemeCard(state.current_card.content, 'big'));
@@ -1064,6 +1120,7 @@ function updateVotingPanel(state) {
             ? 'Đây là lá cuối: chỉ cần 1/2 đồng ý là người đó thắng!'
             : 'Cần 3/4 số phiếu đồng ý để lá được chấp nhận.';
         overlay.classList.remove('hidden');
+        if (freshCard) flipReveal(overlayCard.querySelector('.meme-card'), { duration: 650, delay: 150 });
     } else {
         overlay.classList.add('hidden');
     }
@@ -1301,9 +1358,6 @@ function backToLogin() {
 // Dọn màn chơi (dùng khi rời phòng, và khi hết ván quay về phòng chờ)
 function resetGameUi() {
     stopTimer();
-    matchTimer.deadline = null;
-    clearInterval(matchTimer.handle);
-    matchTimer.handle = null;
     ui = {
         lastState: null,
         seenVotingId: 0,
