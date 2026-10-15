@@ -9,6 +9,7 @@ from topics import TOPIC_SUGGESTIONS
 
 HAND_SIZE = 5
 MIN_PLAYERS = 2
+REJECT_DRAW = 2  # Lá bị từ chối: người đánh rút thêm bấy nhiêu lá (phạt)
 VOTE_SECONDS = 30  # Thời gian tối đa cho một lượt bỏ phiếu
 TOPIC_SECONDS = 45  # Thời gian người mở vòng gõ chủ đề, hết giờ thì lấy đề ngẫu nhiên
 TOPIC_MAX_LENGTH = 100
@@ -343,8 +344,9 @@ class Game:
                     "message": f"{player.name} đã thắng với lá bài cuối!"
                 }
         else:
-            # Lá bài bị từ chối: mất lượt và rút 1 lá bài mới
-            player.add_card(self.deck.draw_card())
+            # Lá bài bị từ chối: mất lượt và bị phạt rút thêm lá
+            for card in self.deck.draw_multiple(REJECT_DRAW):
+                player.add_card(card)
 
         # Chuyển sang người chơi tiếp theo, hết một vòng thì sang vòng mới (ra đề mới)
         self.current_player_index += 1
