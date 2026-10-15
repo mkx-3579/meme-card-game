@@ -147,7 +147,13 @@
 
                 <!-- Notifications -->
                 <div id="notificationBox" class="notification-box">
-                    <div id="notifications"></div>
+                    <button id="logToggle" class="log-header" type="button" aria-expanded="true" title="Ẩn/hiện diễn biến">
+                        <span class="log-title">📜 Diễn biến</span>
+                        <span id="logLatest" class="log-latest"></span>
+                        <span id="logUnread" class="log-unread hidden"></span>
+                        <span class="log-arrow">▾</span>
+                    </button>
+                    <div id="notifications" class="log-list"></div>
                 </div>
 
                 <!-- Leave Button -->

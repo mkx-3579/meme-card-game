@@ -10,7 +10,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from game_engine import (  # noqa: E402
-    Game, GameState, HAND_SIZE, VOTE_SECONDS, TOPIC_SECONDS, TOPIC_MAX_LENGTH)
+    Game, GameState, HAND_SIZE, REJECT_DRAW, VOTE_SECONDS, TOPIC_SECONDS, TOPIC_MAX_LENGTH)
 from topics import TOPIC_SUGGESTIONS  # noqa: E402
 
 SEED = 42
@@ -134,12 +134,14 @@ class TestPlaying(unittest.TestCase):
         self.assertEqual(len(game.players[pid].hand), HAND_SIZE - 1)
         self.assertEqual(game.get_current_player().player_id, 'B')
 
-    def test_rejected_card_draws_replacement_and_passes_turn(self):
+    def test_rejected_card_draws_penalty_and_passes_turn(self):
         game = make_game()
         pid, result = play_turn(game, False)
         self.assertFalse(result['vote_result']['is_valid'])
         self.assertEqual(game.players[pid].score, 0)
-        self.assertEqual(len(game.players[pid].hand), HAND_SIZE)
+        # Đánh 1 lá, bị phạt rút 2: tay nhiều hơn 1 lá so với lúc đầu
+        self.assertEqual(REJECT_DRAW, 2)
+        self.assertEqual(len(game.players[pid].hand), HAND_SIZE - 1 + REJECT_DRAW)
         self.assertEqual(game.get_current_player().player_id, 'B')
 
     def test_normal_card_needs_three_quarters(self):
@@ -202,7 +204,7 @@ class TestWinning(unittest.TestCase):
         self.give_last_card(game, 'A')
         pid, result = play_turn(game, False)
         self.assertFalse(result['success'])
-        self.assertEqual(len(game.players['A'].hand), 1)
+        self.assertEqual(len(game.players['A'].hand), REJECT_DRAW)
         self.assertEqual(game.state, GameState.PLAYING)
 
     def test_no_moves_after_game_end(self):
@@ -324,7 +326,7 @@ class TestVoteTimer(unittest.TestCase):
         hand_before = len(game.players['A'].hand)
         result = game.end_voting()
         self.assertFalse(result['vote_result']['is_valid'])
-        self.assertEqual(len(game.players['A'].hand), hand_before + 1)
+        self.assertEqual(len(game.players['A'].hand), hand_before + REJECT_DRAW)
         self.assertEqual(game.get_current_player().player_id, 'B')
 
     def test_old_timer_does_not_touch_new_vote(self):

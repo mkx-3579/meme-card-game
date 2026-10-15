@@ -3,7 +3,7 @@ Meme Card Game - Flask Backend với SocketIO
 """
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from game_engine import Game, GameState, VOTE_SECONDS, TOPIC_SECONDS
+from game_engine import Game, GameState, VOTE_SECONDS, TOPIC_SECONDS, REJECT_DRAW
 from topics import TOPIC_SUGGESTIONS
 from card_deck import SOUND_DIR, SOUND_EXTS, find_asset
 import os
@@ -256,7 +256,7 @@ def finish_voting_if_complete(game):
         return
 
     vote_result = result['vote_result']
-    validity_text = 'ĐƯỢC CHẤP NHẬN' if vote_result['is_valid'] else 'BỊ TỪ CHỐI'
+    validity_text = 'ĐƯỢC CHẤP NHẬN' if vote_result['is_valid'] else f'BỊ TỪ CHỐI, phạt rút {REJECT_DRAW} lá'
     emit_to_room(game.game_id, 'notification', {
         'message': f"Kết quả bỏ phiếu: {validity_text} ({vote_result['valid_votes']}/{vote_result['total_votes']})"
     })

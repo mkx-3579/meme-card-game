@@ -30,7 +30,7 @@ Sau đó truy cập: `http://localhost:5000`
 5. Tất cả người chơi khác bình chọn ảnh đó có hợp với chủ đề không; người đánh không bỏ phiếu cho lá của mình
 6. **Bài bình thường**: Cần 3/4 người đồng ý → được +1 điểm
 7. **Bài cuối cùng** (lá làm tay bạn hết bài): Chỉ cần 1/2 người đồng ý → thắng, ván kết thúc
-8. Nếu lá bài bị từ chối, người chơi mất lượt và rút 1 lá bài mới
+8. Nếu lá bài bị từ chối, người chơi mất lượt và bị phạt **rút 2 lá** (tay bài nhiều hơn 1 lá so với trước khi đánh)
 9. Ai rời phòng giữa ván thì phiếu của họ không còn được chờ; còn 1 người thì người đó thắng
 10. Mỗi lượt bỏ phiếu có **30 giây**. Hết giờ, ai chưa vote thì không được tính; không ai vote thì lá bị từ chối
 
