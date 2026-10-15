@@ -480,30 +480,83 @@ body {
 /* Notification Box */
 .notification-box {
     background: #f3f4f6;
-    padding: 15px;
     border-top: 1px solid #ddd;
-    max-height: 150px;
-    overflow-y: auto;
+    font-size: 0.82em;
 }
 
-#notifications {
+.log-header {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 15px;
+    border: none;
+    background: none;
+    color: #374151;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
 }
+
+.log-header:hover { background: #e5e7eb; }
+
+.log-title {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* Dòng mới nhất chỉ hiện khi khung đang thu gọn */
+.log-latest {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #6b7280;
+    visibility: hidden;
+}
+
+.notification-box.collapsed .log-latest { visibility: visible; }
+
+.log-unread {
+    padding: 0 7px;
+    border-radius: 999px;
+    background: #667eea;
+    color: white;
+    font-size: 0.85em;
+    font-weight: 700;
+}
+
+.log-arrow {
+    margin-left: auto;
+    transition: transform 0.2s;
+}
+
+.notification-box.collapsed .log-arrow { transform: rotate(-90deg); }
+
+.log-list {
+    max-height: 84px;
+    margin: 0 15px 8px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+}
+
+.notification-box.collapsed .log-list { display: none; }
 
 .notification {
-    background: white;
-    padding: 10px 15px;
-    border-radius: 6px;
-    border-left: 4px solid #667eea;
-    font-size: 0.9em;
+    padding: 3px 10px;
+    line-height: 1.4;
+    border-bottom: 1px solid #f3f4f6;
     animation: slideIn 0.3s ease-out;
 }
 
+.notification:last-child { border-bottom: none; }
+
 .notification.winner {
-    border-left-color: #10b981;
-    background: #ecfdf5;
+    color: #047857;
+    font-weight: 700;
 }
 
 @keyframes slideIn {

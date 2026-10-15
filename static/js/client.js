@@ -954,19 +954,44 @@ function launchConfetti() {
 
 // ==================== Notifications & Modals ====================
 
+// Khung "Diễn biến": một danh sách liền, có thể thu gọn
+const LOG_MAX_LINES = 40;
+let logCollapsed = loadSetting('logCollapsed', false);
+let logUnread = 0;
+
+function applyLogCollapsed() {
+    const box = document.getElementById('notificationBox');
+    box.classList.toggle('collapsed', logCollapsed);
+    document.getElementById('logToggle').setAttribute('aria-expanded', String(!logCollapsed));
+    if (!logCollapsed) {
+        logUnread = 0;
+        const list = document.getElementById('notifications');
+        list.scrollTop = list.scrollHeight;
+    }
+    const badge = document.getElementById('logUnread');
+    badge.textContent = logUnread;
+    badge.classList.toggle('hidden', logUnread === 0);
+}
+
+document.getElementById('logToggle').addEventListener('click', () => {
+    logCollapsed = !logCollapsed;
+    saveSetting('logCollapsed', logCollapsed);
+    applyLogCollapsed();
+});
+applyLogCollapsed();
+
 function addNotification(message, type) {
     const container = document.getElementById('notifications');
     const notif = document.createElement('div');
     notif.className = 'notification' + (type === 'winner' ? ' winner' : '');
     notif.textContent = message;
     container.appendChild(notif);
-
-    // Tự động xóa sau 10 giây
-    setTimeout(() => {
-        notif.remove();
-    }, 10000);
-
+    while (container.children.length > LOG_MAX_LINES) container.firstChild.remove();
     container.scrollTop = container.scrollHeight;
+
+    document.getElementById('logLatest').textContent = message;
+    if (logCollapsed) logUnread += 1;
+    applyLogCollapsed();
 }
 
 function showError(message) {
@@ -1011,6 +1036,9 @@ function backToLogin() {
     document.getElementById('currentCardContent').dataset.key = '';
     document.getElementById('overlayCard').dataset.key = '';
     document.getElementById('notifications').innerHTML = '';
+    document.getElementById('logLatest').textContent = '';
+    logUnread = 0;
+    applyLogCollapsed();
 }
 
 // ==================== Initial Setup ====================
