@@ -242,6 +242,14 @@
 
                 <!-- Bình chọn + luật -->
                 <aside class="side-panel">
+                    <!-- Pop-up báo lượt (góc phải; trên điện thoại nổi ở đáy màn hình) -->
+                    <div id="turnToast" class="turn-toast hidden" role="status" aria-live="polite">
+                        <span id="turnToastIcon" class="turn-toast-icon" aria-hidden="true"></span>
+                        <div class="turn-toast-body">
+                            <strong id="turnToastTitle"></strong>
+                            <span id="turnToastSub"></span>
+                        </div>
+                    </div>
                     <div id="votingPanel" class="voting-panel hidden">
                         <h2 class="panel-title">Bình chọn</h2>
                         <p id="votingPrompt">Lá bài này có hợp lệ không?</p>
@@ -268,16 +276,6 @@
                 </aside>
             </div>
 
-            <!-- Diễn biến -->
-            <div id="notificationBox" class="notification-box">
-                <button id="logToggle" class="log-header" type="button" aria-expanded="true" title="Ẩn/hiện diễn biến">
-                    <span class="log-title">Diễn biến</span>
-                    <span id="logLatest" class="log-latest"></span>
-                    <span id="logUnread" class="log-unread hidden"></span>
-                    <svg class="ico log-arrow" aria-hidden="true"><use href="#i-chevron"/></svg>
-                </button>
-                <div id="notifications" class="log-list"></div>
-            </div>
         </div>
 
         <!-- ==================== Bảng bỏ phiếu lớn ==================== -->
