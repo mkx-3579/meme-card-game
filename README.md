@@ -31,6 +31,15 @@ Sau đó truy cập: `http://localhost:5000`
 6. **Bài cuối cùng** (lá làm tay bạn hết bài): Chỉ cần 1/2 người đồng ý → thắng, ván kết thúc
 7. Nếu lá bài bị từ chối, người chơi mất lượt và rút 1 lá bài mới
 8. Ai rời phòng giữa ván thì phiếu của họ không còn được chờ; còn 1 người thì người đó thắng
+9. Mỗi lượt bỏ phiếu có **30 giây**. Hết giờ, ai chưa vote thì không được tính; không ai vote thì lá bị từ chối
+
+## Ảnh và âm thanh meme
+
+- Ảnh: thả ảnh mẫu meme (ảnh trống) vào `static/memes/img/`, đặt tên theo mẫu, ví dụ `drake.jpg`.
+- Âm thanh: `static/sounds/` (âm giao diện như `accept.mp3`, âm riêng từng meme như `meme-stonks.mp3`).
+- Danh sách đầy đủ tên file và chỗ ghi nguồn nằm trong [ASSETS.md](ASSETS.md). Thêm file nào thì điền một dòng ở đó.
+- Thiếu file thì game vẫn chạy: lá bài hiện khung màu + emoji, âm thanh dùng tiếng bíp tổng hợp.
+- Trong game có nút 🔊 (tắt tiếng), thanh âm lượng và nút ✨ (tắt hiệu ứng).
 
 ## Chạy test
 
@@ -45,14 +54,18 @@ meme-card-game/
 ├── app.py                 # Flask app chính
 ├── requirements.txt       # Dependencies
 ├── game_engine.py        # Game logic
-├── card_deck.py          # Bộ bài
+├── card_deck.py          # Bộ bài + mẫu meme
+├── ASSETS.md             # Danh sách ảnh/âm thanh và nguồn
 ├── tests/
-│   └── test_game_engine.py
+│   ├── test_game_engine.py
+│   └── test_assets.py
 ├── templates/
 │   └── index.html        # UI game
 └── static/
     ├── css/
     │   └── style.css
-    └── js/
-        └── client.js
+    ├── js/
+    │   └── client.js
+    ├── memes/img/        # Ảnh mẫu meme
+    └── sounds/           # Âm thanh
 ```

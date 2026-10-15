@@ -3,7 +3,8 @@ Meme Card Game - Flask Backend với SocketIO
 """
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from game_engine import Game, GameState
+from game_engine import Game, GameState, VOTE_SECONDS
+from card_deck import SOUND_DIR, SOUND_EXTS, find_asset
 import os
 import threading
 import uuid
@@ -29,9 +30,16 @@ game_lock = threading.RLock()
 
 MAX_NAME_LENGTH = 20
 
+# Âm thanh giao diện; thiếu file thì client tự phát tiếng bíp tổng hợp
+UI_SOUNDS = ('card-play', 'vote', 'accept', 'reject', 'tick', 'win', 'your-turn')
+
 @app.route('/')
 def index():
-    return render_template('index.html')
+    ui_sounds = {}
+    for name in UI_SOUNDS:
+        found = find_asset(SOUND_DIR, name, SOUND_EXTS)
+        ui_sounds[name] = f'/static/sounds/{found}' if found else None
+    return render_template('index.html', ui_sounds=ui_sounds)
 
 # ==================== SocketIO Events ====================
 
@@ -164,6 +172,7 @@ def handle_play_card(data):
                 'message': f'{player.name} đã đánh 1 lá bài{final_text}. Bây giờ mọi người bình chọn!'
             })
             emit_game_state_to_room(game.game_id)
+            socketio.start_background_task(vote_timer, game.game_id, game.voting_id)
         else:
             emit('error', {'message': 'Không thể đánh bài. Đảm bảo đó là lượt của bạn'})
 
@@ -233,6 +242,23 @@ def finish_voting_if_complete(game):
             'message': f"🎉 {result['message']}",
             'type': 'winner'
         })
+
+def vote_timer(game_id, voting_id):
+    """Hết giờ bỏ phiếu thì bỏ qua người chưa vote và chốt kết quả"""
+    socketio.sleep(VOTE_SECONDS)
+    with game_lock:
+        game = games.get(game_id)
+        if game is None:
+            return
+        skipped = game.expire_votes(voting_id)
+        if not skipped:
+            return
+        names = ', '.join(game.players[pid].name for pid in skipped if pid in game.players)
+        emit_to_room(game_id, 'notification', {
+            'message': f'⏰ Hết giờ! Không tính phiếu của: {names}'
+        })
+        finish_voting_if_complete(game)
+        emit_game_state_to_room(game_id)
 
 def remove_player_from_game(player_id):
     """Xóa người chơi khỏi game đang ở (nếu có) và cập nhật cho những người còn lại"""
