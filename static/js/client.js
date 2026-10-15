@@ -154,7 +154,10 @@ class GameAudio {
             'drumroll': drumroll.concat([[120, 36 * 0.045, 0.4, 'sine', 60, 1.4], [3000, 36 * 0.045, 0.4, 'noise', null, 0.6]]),
             'topic': [[1319, 0, 0.25, 'sine'], [1760, 0.08, 0.35, 'sine']],
             'win': [[523, 0, 0.12, 'triangle'], [659, 0.12, 0.12, 'triangle'], [784, 0.24, 0.12, 'triangle'], [1047, 0.36, 0.35, 'triangle']],
-            'your-turn': [[880, 0, 0.08, 'sine'], [1175, 0.1, 0.12, 'sine']]
+            // Đến lượt mình đánh bài: hai tiếng "pắp pắp"
+            'your-turn': [[880, 0, 0.08, 'sine'], [1175, 0.1, 0.12, 'sine']],
+            // Đến lượt mình ra đề: kèn ngắn ba nốt đi lên
+            'your-topic': [[523, 0, 0.12, 'square', null, 0.5], [659, 0.12, 0.12, 'square', null, 0.5], [784, 0.24, 0.3, 'square', null, 0.5], [1568, 0.24, 0.35, 'sine', null, 0.6]]
         };
         const notes = patterns[name];
         if (!notes) return;
@@ -326,7 +329,6 @@ function copyRoomCode() {
         btn.classList.add('copied');
         hint.textContent = `Đã copy mã ${code}, dán gửi bạn bè thôi!`;
         chip.textContent = 'Đã copy mã!';
-        addNotification(`Đã copy mã phòng ${code}`);
     }).catch(() => {
         hint.textContent = `Không copy được, hãy gửi mã ${code} cho bạn bè`;
     }).finally(() => {
@@ -435,7 +437,6 @@ socket.on('connect', () => {
 });
 
 socket.on('notification', (data) => {
-    addNotification(data.message, data.type);
     if (data.type === 'winner') {
         setTimeout(() => {
             document.getElementById('winnerMessage').textContent = data.message;
@@ -744,6 +745,7 @@ function updateGameScreen(state) {
 
     updatePlayersStatus(state, prev);
     updateSpectators(state);
+    updateTurnToast(state);
     updateMyHand(state, prev);
     updateGameStatus(state);
 
@@ -801,7 +803,6 @@ function handleEvents(state, prev) {
             `#playersStatus .player-item[data-player-id="${CSS.escape(state.current_card.played_by)}"]`);
         flipReveal(document.querySelector('#currentCardContent .meme-card'),
             { from: seat, duration: 900 });
-        if (state.can_vote) setTimeout(() => audio.play('your-turn'), 700);
     }
 
     // Có kết quả bỏ phiếu mới
@@ -810,6 +811,13 @@ function handleEvents(state, prev) {
         const firstSeen = ui.seenResultId === 0 && !prev;
         ui.seenResultId = result.voting_id;
         if (!firstSeen) showResult(state, result);
+    }
+
+    // Đến lượt mình ra đề: âm thanh riêng
+    if (state.state === 'topic' && state.current_player_id === gameState.playerId
+            && ui.seenMyTopicId !== state.topic_id) {
+        ui.seenMyTopicId = state.topic_id;
+        setTimeout(() => audio.play('your-topic'), result && result.voting_id === ui.seenResultId ? 900 : 0);
     }
 
     // Đến lượt mình đánh
@@ -843,12 +851,6 @@ function showResult(state, result) {
     if (!result.is_valid) replayAnimation(card, 'shake');
 
     if (result.is_valid) floatPoint(result.played_by);
-
-    // Cho mọi người thấy ai vote gì
-    const details = Object.entries(result.votes || {})
-        .map(([pid, v]) => `${playerName(state, pid)} ${v ? 'hợp đề' : 'không hợp'}`)
-        .join(', ');
-    if (details) addNotification(`Phiếu bầu: ${details}`);
 
     clearTimeout(ui.stampTimer);
     ui.stampTimer = setTimeout(() => stamp.classList.add('hidden'), 2500);
@@ -1284,44 +1286,50 @@ function launchConfetti() {
 
 // ==================== Notifications & Modals ====================
 
-// Khung "Diễn biến": một danh sách liền, có thể thu gọn
-const LOG_MAX_LINES = 40;
-let logCollapsed = loadSetting('logCollapsed', true);
-let logUnread = 0;
+// Pop-up góc phải: luôn cho biết đang tới lượt ai, nảy lên mỗi khi đổi lượt
+function updateTurnToast(state) {
+    const toast = document.getElementById('turnToast');
+    const me = gameState.playerId;
+    const isMe = state.current_player_id === me;
+    const who = playerName(state, state.current_player_id);
+    let icon = '', title = '', sub = '', mine = false;
 
-function applyLogCollapsed() {
-    const box = document.getElementById('notificationBox');
-    box.classList.toggle('collapsed', logCollapsed);
-    document.getElementById('logToggle').setAttribute('aria-expanded', String(!logCollapsed));
-    if (!logCollapsed) {
-        logUnread = 0;
-        const list = document.getElementById('notifications');
-        list.scrollTop = list.scrollHeight;
+    if (state.state === 'topic') {
+        icon = '📣';
+        mine = isMe;
+        title = isMe ? 'Đến lượt bạn ra chủ đề!' : `${who} đang ra chủ đề`;
+        sub = isMe ? 'Gõ một tình huống hoặc bấm xúc xắc' : 'Chờ một chút nhé...';
+    } else if (state.state === 'playing') {
+        icon = '🃏';
+        mine = isMe;
+        title = isMe ? 'Đến lượt bạn đánh!' : `Lượt của ${who}`;
+        sub = isMe ? 'Chọn một ảnh hợp đề trong tay bài' : `${who} đang chọn ảnh...`;
+    } else if (state.state === 'voting') {
+        const needsMyVote = state.can_vote && (state.my_vote === null || state.my_vote === undefined);
+        icon = '🗳️';
+        mine = needsMyVote;
+        title = needsMyVote ? 'Đến lượt bạn chấm!' : 'Đang bỏ phiếu';
+        sub = `Lá của ${playerName(state, state.current_card && state.current_card.played_by)}`
+            + ` · ${state.votes_count}/${state.total_voters} phiếu`;
+    } else {
+        toast.classList.add('hidden');
+        toast.dataset.key = '';
+        return;
     }
-    const badge = document.getElementById('logUnread');
-    badge.textContent = logUnread;
-    badge.classList.toggle('hidden', logUnread === 0);
-}
 
-document.getElementById('logToggle').addEventListener('click', () => {
-    logCollapsed = !logCollapsed;
-    saveSetting('logCollapsed', logCollapsed);
-    applyLogCollapsed();
-});
-applyLogCollapsed();
+    if (state.is_spectator) sub = 'Bạn đang xem, ván sau sẽ được chơi';
+    document.getElementById('turnToastIcon').textContent = icon;
+    document.getElementById('turnToastTitle').textContent = title;
+    document.getElementById('turnToastSub').textContent = sub;
+    toast.classList.toggle('mine', mine);
+    toast.classList.remove('hidden');
 
-function addNotification(message, type) {
-    const container = document.getElementById('notifications');
-    const notif = document.createElement('div');
-    notif.className = 'notification' + (type === 'winner' ? ' winner' : '');
-    notif.textContent = message;
-    container.appendChild(notif);
-    while (container.children.length > LOG_MAX_LINES) container.firstChild.remove();
-    container.scrollTop = container.scrollHeight;
-
-    document.getElementById('logLatest').textContent = message;
-    if (logCollapsed) logUnread += 1;
-    applyLogCollapsed();
+    // Đổi lượt (hoặc mình vừa bỏ phiếu xong) thì cho pop-up nảy lại
+    const key = [state.state, state.current_player_id, state.topic_id, state.turn_id, state.voting_id, mine].join('|');
+    if (toast.dataset.key !== key) {
+        toast.dataset.key = key;
+        replayAnimation(toast, 'toast-in');
+    }
 }
 
 function showError(message) {
@@ -1349,10 +1357,6 @@ function backToLogin() {
     // Tên giữ nguyên trong phiên, chỉ xóa mã phòng
     document.getElementById('playerName').value = loadSession('name');
     document.getElementById('gameCodeInput').value = '';
-    document.getElementById('notifications').innerHTML = '';
-    document.getElementById('logLatest').textContent = '';
-    logUnread = 0;
-    applyLogCollapsed();
 }
 
 // Dọn màn chơi (dùng khi rời phòng, và khi hết ván quay về phòng chờ)
@@ -1376,6 +1380,9 @@ function resetGameUi() {
     document.getElementById('overlayCard').dataset.key = '';
     document.getElementById('topicPanel').dataset.key = '';
     delete document.getElementById('gameScreen').dataset.state;
+    const toast = document.getElementById('turnToast');
+    toast.classList.add('hidden');
+    toast.dataset.key = '';
 }
 
 // ==================== Initial Setup ====================

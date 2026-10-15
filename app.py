@@ -34,7 +34,7 @@ LOBBY_DELAY = 8  # Hết ván bao nhiêu giây thì cả phòng quay về phòng
 
 # Âm thanh giao diện; thiếu file thì client tự phát tiếng bíp tổng hợp
 UI_SOUNDS = ('card-play', 'vote', 'accept', 'reject', 'tick', 'win', 'your-turn',
-             'deal', 'drumroll', 'topic')
+             'your-topic', 'deal', 'drumroll', 'topic')
 # Mỗi âm thanh có thể có thêm bản phụ <tên>-2, <tên>-3 để phát ngẫu nhiên cho đỡ nhàm
 SOUND_VARIANTS = ('', '-2', '-3')
 
