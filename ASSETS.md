@@ -49,7 +49,10 @@ Bạn tự kiểm tra điều khoản của từng trang.
 | `static/sounds/vote.mp3` | Bỏ một phiếu | | | |
 | `static/sounds/accept.mp3` | Lá được chấp nhận | | | |
 | `static/sounds/reject.mp3` | Lá bị từ chối | | | |
-| `static/sounds/tick.mp3` | 5 giây cuối khi vote | | | |
+| `static/sounds/tick.mp3` | 3 giây cuối khi chưa vote / chưa ra đề | | | |
+| `static/sounds/deal.mp3` | Chia bài đầu ván | | | |
+| `static/sounds/drumroll.mp3` | Trống dồn 5 giây cuối khi vote | | | |
+| `static/sounds/topic.mp3` | Có chủ đề mới cho vòng | | | |
 | `static/sounds/win.mp3` | Thắng ván | | | |
 | `static/sounds/your-turn.mp3` | Đến lượt bạn / đến lượt bạn vote | | | |
 

@@ -1,16 +1,21 @@
 """
 Game engine cho Meme Card Game
 """
+import re
 import time
 from enum import Enum
 from card_deck import Deck
+from topics import TOPIC_SUGGESTIONS
 
 HAND_SIZE = 5
 MIN_PLAYERS = 2
 VOTE_SECONDS = 30  # Thời gian tối đa cho một lượt bỏ phiếu
+TOPIC_SECONDS = 45  # Thời gian người mở vòng gõ chủ đề, hết giờ thì lấy đề ngẫu nhiên
+TOPIC_MAX_LENGTH = 100
 
 class GameState(Enum):
     WAITING = "waiting"
+    TOPIC = "topic"  # Người mở vòng đang ra chủ đề
     PLAYING = "playing"
     VOTING = "voting"
     GAME_END = "game_end"
@@ -64,6 +69,13 @@ class Game:
         self.voting_id = 0  # Tăng mỗi lần mở bỏ phiếu, để hẹn giờ cũ không chốt nhầm lượt mới
         self.vote_deadline = None
         self.last_result = None  # Kết quả lượt vote gần nhất (ai vote gì) để hiện cho cả phòng
+        # Vòng thứ n do người thứ n (xoay vòng) mở: người đó ra đề và đánh trước.
+        # current_player_index = số lượt đã đánh trong vòng, tính từ người mở vòng.
+        self.round_start = 0
+        self.topic = None
+        self.topic_id = 0  # Tăng mỗi lần mở bước ra đề, để hẹn giờ cũ không đặt nhầm đề
+        self.topic_deadline = None
+        self.timed_topic_id = 0  # Server đã hẹn giờ cho bước ra đề nào rồi
 
     @property
     def game_started(self):
@@ -88,12 +100,19 @@ class Game:
 
         player_ids = list(self.players.keys())
         removed_index = player_ids.index(player_id)
+        # Vị trí trong lượt của vòng này (tính từ người mở vòng)
+        removed_turn = (removed_index - self.round_start) % len(player_ids)
         del self.players[player_id]
+        if removed_index < self.round_start:
+            self.round_start -= 1
 
         if self.host_id == player_id:
             self.host_id = next(iter(self.players), None)
 
-        if self.state not in (GameState.PLAYING, GameState.VOTING):
+        if self.players:
+            self.round_start %= len(self.players)
+
+        if self.state not in (GameState.TOPIC, GameState.PLAYING, GameState.VOTING):
             return True
 
         # Còn dưới 2 người thì kết thúc ván, người còn lại thắng
@@ -103,9 +122,9 @@ class Game:
             self._finish(next(iter(self.players), None))
             return True
 
-        if removed_index < self.current_player_index:
+        if removed_turn < self.current_player_index:
             self.current_player_index -= 1
-        elif removed_index == self.current_player_index:
+        elif removed_turn == self.current_player_index:
             # Người đang tới lượt rời đi: người kế tiếp nhận lượt
             if self.state == GameState.VOTING:
                 # Hủy lá đang xét vì người đánh đã rời phòng
@@ -113,7 +132,12 @@ class Game:
                 self.votes = {}
                 self.vote_deadline = None
                 self.state = GameState.PLAYING
-            self.current_player_index %= len(self.players)
+            if self.current_player_index >= len(self.players):
+                # Người cuối vòng rời đi: sang vòng mới
+                self._next_round()
+            elif self.state == GameState.TOPIC:
+                # Người ra đề rời đi: người kế tiếp ra đề, tính lại giờ
+                self._open_topic()
 
         # Người rời đi không còn phải bỏ phiếu
         self.votes.pop(player_id, None)
@@ -129,21 +153,78 @@ class Game:
             player.hand = self.deck.draw_multiple(HAND_SIZE)
             player.score = 0
 
-        self.state = GameState.PLAYING
         self.current_round = 1
+        self.round_start = 0
         self.current_player_index = 0
         self.current_card = None
         self.votes = {}
         self.winner_id = None
         self.last_result = None
+        self._open_topic()
         return True
+
+    def _open_topic(self):
+        """Mở bước ra đề cho người mở vòng hiện tại"""
+        self.state = GameState.TOPIC
+        self.topic = None
+        self.topic_id += 1
+        self.topic_deadline = self.clock() + TOPIC_SECONDS
+
+    def _next_round(self):
+        self.current_round += 1
+        self.current_player_index = 0
+        if self.players:
+            self.round_start = (self.round_start + 1) % len(self.players)
+        self._open_topic()
+
+    @staticmethod
+    def clean_topic(text):
+        """Gộp khoảng trắng, cắt độ dài. Trả về '' nếu không còn gì"""
+        text = re.sub(r'\s+', ' ', str(text or '')).strip()
+        return text[:TOPIC_MAX_LENGTH].strip()
+
+    def _round_opener_id(self):
+        player_ids = list(self.players.keys())
+        return player_ids[self.round_start % len(player_ids)] if player_ids else None
+
+    def get_topic_setter(self):
+        return self.get_current_player() if self.state == GameState.TOPIC else None
+
+    def set_topic(self, player_id, text):
+        """Người mở vòng gõ chủ đề; xong thì người đó đánh lá đầu tiên"""
+        setter = self.get_topic_setter()
+        if setter is None or setter.player_id != player_id:
+            return False
+        topic = self.clean_topic(text)
+        if not topic:
+            return False
+        self.topic = topic
+        self.topic_deadline = None
+        self.state = GameState.PLAYING
+        return True
+
+    def expire_topic(self, topic_id=None):
+        """Hết giờ ra đề: lấy một đề ngẫu nhiên. Trả về đề đã đặt, hoặc None"""
+        if self.state != GameState.TOPIC:
+            return None
+        if topic_id is not None and topic_id != self.topic_id:
+            return None
+        setter = self.get_topic_setter()
+        self.set_topic(setter.player_id, self.deck.rng.choice(TOPIC_SUGGESTIONS))
+        return self.topic
+
+    def topic_time_left(self):
+        if self.state != GameState.TOPIC or self.topic_deadline is None:
+            return None
+        return max(0, round(self.topic_deadline - self.clock()))
 
     def get_current_player(self):
         """Lấy người chơi hiện tại"""
         player_ids = list(self.players.keys())
         if not player_ids:
             return None
-        return self.players[player_ids[self.current_player_index % len(player_ids)]]
+        index = (self.round_start + self.current_player_index) % len(player_ids)
+        return self.players[player_ids[index]]
 
     def player_play_card(self, player_id, card_index):
         """Người chơi đánh bài"""
@@ -265,12 +346,11 @@ class Game:
             # Lá bài bị từ chối: mất lượt và rút 1 lá bài mới
             player.add_card(self.deck.draw_card())
 
-        # Chuyển sang người chơi tiếp theo, hết một vòng thì sang round mới
+        # Chuyển sang người chơi tiếp theo, hết một vòng thì sang vòng mới (ra đề mới)
         self.current_player_index += 1
-        if self.current_player_index >= len(self.players):
-            self.current_player_index = 0
-            self.current_round += 1
         self.state = GameState.PLAYING
+        if self.current_player_index >= len(self.players):
+            self._next_round()
 
         return {
             "success": False,
@@ -283,6 +363,7 @@ class Game:
         self.winner_id = winner_id
         self.votes = {}
         self.vote_deadline = None
+        self.topic_deadline = None
 
     def get_state(self):
         """Lấy trạng thái game hiện tại (không kèm phiếu của từng người)"""
@@ -308,6 +389,12 @@ class Game:
             "vote_time_left": self.vote_time_left(),
             "vote_seconds": VOTE_SECONDS,
             "last_result": self.last_result,
+            "topic": self.topic,
+            "round_opener_id": self._round_opener_id(),
+            "topic_id": self.topic_id,
+            "topic_time_left": self.topic_time_left(),
+            "topic_seconds": TOPIC_SECONDS,
+            "topic_max_length": TOPIC_MAX_LENGTH,
         }
 
     def get_state_for_player(self, player_id):

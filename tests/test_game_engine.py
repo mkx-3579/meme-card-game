@@ -9,7 +9,9 @@ import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from game_engine import Game, GameState, HAND_SIZE, VOTE_SECONDS  # noqa: E402
+from game_engine import (  # noqa: E402
+    Game, GameState, HAND_SIZE, VOTE_SECONDS, TOPIC_SECONDS, TOPIC_MAX_LENGTH)
+from topics import TOPIC_SUGGESTIONS  # noqa: E402
 
 SEED = 42
 
@@ -20,7 +22,13 @@ def make_game(names='ABC', start=True):
         game.add_player(name, name)
     if start:
         game.start_game()
+        set_topic(game)
     return game
+
+
+def set_topic(game, text='Đề thử'):
+    """Người mở vòng ra đề để vòng bắt đầu đánh bài"""
+    assert game.set_topic(game.get_current_player().player_id, text)
 
 
 def vote_all(game, is_valid):
@@ -30,6 +38,8 @@ def vote_all(game, is_valid):
 
 def play_turn(game, is_valid=True):
     """Người đang tới lượt đánh lá đầu tiên, mọi người vote giống nhau"""
+    if game.state == GameState.TOPIC:
+        set_topic(game)
     pid = game.get_current_player().player_id
     assert game.player_play_card(pid, 0)
     vote_all(game, is_valid)
@@ -49,8 +59,10 @@ class TestSetup(unittest.TestCase):
         self.assertIsNone(game.winner_id)
 
     def test_start_deals_five_cards_and_first_player_starts(self):
-        game = make_game()
-        self.assertEqual(game.state, GameState.PLAYING)
+        game = make_game(start=False)
+        game.start_game()
+        # Vòng đầu bắt đầu bằng bước ra đề của người chơi đầu tiên
+        self.assertEqual(game.state, GameState.TOPIC)
         self.assertEqual(game.get_current_player().player_id, 'A')
         for player in game.players.values():
             self.assertEqual(len(player.hand), HAND_SIZE)
@@ -142,7 +154,14 @@ class TestPlaying(unittest.TestCase):
         for _ in range(3):
             play_turn(game, True)
         self.assertEqual(game.current_round, 2)
-        self.assertEqual(game.get_current_player().player_id, 'A')
+        # Vòng 2 do người thứ 2 mở: ra đề rồi đánh trước
+        self.assertEqual(game.state, GameState.TOPIC)
+        self.assertEqual(game.get_current_player().player_id, 'B')
+        set_topic(game)
+        order = [play_turn(game, True)[0] for _ in range(3)]
+        self.assertEqual(order, ['B', 'C', 'A'])
+        self.assertEqual(game.current_round, 3)
+        self.assertEqual(game.get_current_player().player_id, 'C')
 
 
 class TestWinning(unittest.TestCase):
@@ -227,7 +246,10 @@ class TestLeaving(unittest.TestCase):
         play_turn(game, True)
         play_turn(game, True)  # tới lượt C
         game.remove_player('C')
-        self.assertEqual(game.get_current_player().player_id, 'A')
+        # Người cuối vòng rời đi: sang vòng 2, người thứ 2 (B) ra đề
+        self.assertEqual(game.current_round, 2)
+        self.assertEqual(game.state, GameState.TOPIC)
+        self.assertEqual(game.get_current_player().player_id, 'B')
 
     def test_one_player_left_wins(self):
         game = make_game('AB')
@@ -274,6 +296,7 @@ class TestVoteTimer(unittest.TestCase):
         for name in 'ABC':
             game.add_player(name, name)
         game.start_game()
+        set_topic(game)
         return game, clock
 
     def test_time_left_counts_down(self):
@@ -333,3 +356,75 @@ class TestVoteTimer(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestTopic(unittest.TestCase):
+    def make(self):
+        clock = FakeClock()
+        game = Game('t', seed=SEED, clock=clock)
+        for name in 'ABC':
+            game.add_player(name, name)
+        game.start_game()
+        return game, clock
+
+    def test_cannot_play_before_topic(self):
+        game, _ = self.make()
+        self.assertFalse(game.player_play_card('A', 0))
+        self.assertEqual(game.state, GameState.TOPIC)
+
+    def test_only_round_opener_sets_topic(self):
+        game, _ = self.make()
+        self.assertFalse(game.set_topic('B', 'Không phải lượt B'))
+        self.assertTrue(game.set_topic('A', 'Khi sếp nhắn lúc 11h đêm'))
+        self.assertEqual(game.state, GameState.PLAYING)
+        self.assertEqual(game.get_state()['topic'], 'Khi sếp nhắn lúc 11h đêm')
+        self.assertFalse(game.set_topic('A', 'Đề lần hai'))
+
+    def test_topic_is_cleaned_and_limited(self):
+        game, _ = self.make()
+        self.assertFalse(game.set_topic('A', '   \n  '))
+        self.assertFalse(game.set_topic('A', None))
+        self.assertTrue(game.set_topic('A', '  Khi   wifi\n mất  ' + 'x' * 200))
+        self.assertTrue(game.topic.startswith('Khi wifi mất xx'))
+        self.assertEqual(len(game.topic), TOPIC_MAX_LENGTH)
+
+    def test_topic_timeout_picks_suggestion(self):
+        game, clock = self.make()
+        self.assertEqual(game.topic_time_left(), TOPIC_SECONDS)
+        clock.now += TOPIC_SECONDS
+        self.assertEqual(game.topic_time_left(), 0)
+        topic = game.expire_topic(game.topic_id)
+        self.assertIn(topic, TOPIC_SUGGESTIONS)
+        self.assertEqual(game.state, GameState.PLAYING)
+        self.assertIsNone(game.topic_time_left())
+
+    def test_old_topic_timer_is_ignored(self):
+        game, _ = self.make()
+        old_id = game.topic_id
+        game.set_topic('A', 'Đề vòng 1')
+        for _ in range(3):
+            play_turn(game, True)
+        self.assertEqual(game.state, GameState.TOPIC)
+        self.assertIsNone(game.expire_topic(old_id))
+        self.assertEqual(game.state, GameState.TOPIC)
+        self.assertIsNone(game.topic)
+
+    def test_topic_setter_leaving_passes_topic_to_next(self):
+        game, _ = self.make()
+        game.remove_player('A')
+        self.assertEqual(game.state, GameState.TOPIC)
+        self.assertEqual(game.get_current_player().player_id, 'B')
+        self.assertTrue(game.set_topic('B', 'Đề của B'))
+
+    def test_opener_leaving_mid_round_keeps_turn(self):
+        game = make_game('ABCD')
+        for _ in range(4):
+            play_turn(game, True)
+        set_topic(game)  # Vòng 2: B mở
+        play_turn(game, True)  # B đánh, tới lượt C
+        game.remove_player('B')
+        self.assertEqual(game.get_current_player().player_id, 'C')
+        order = [play_turn(game, True)[0] for _ in range(2)]
+        self.assertEqual(order, ['C', 'D'])
+        # A là người cuối của vòng 2
+        self.assertEqual(game.get_current_player().player_id, 'A')

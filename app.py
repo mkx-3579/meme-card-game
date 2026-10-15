@@ -3,7 +3,8 @@ Meme Card Game - Flask Backend với SocketIO
 """
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from game_engine import Game, GameState, VOTE_SECONDS
+from game_engine import Game, GameState, VOTE_SECONDS, TOPIC_SECONDS
+from topics import TOPIC_SUGGESTIONS
 from card_deck import SOUND_DIR, SOUND_EXTS, find_asset
 import os
 import threading
@@ -31,15 +32,22 @@ game_lock = threading.RLock()
 MAX_NAME_LENGTH = 20
 
 # Âm thanh giao diện; thiếu file thì client tự phát tiếng bíp tổng hợp
-UI_SOUNDS = ('card-play', 'vote', 'accept', 'reject', 'tick', 'win', 'your-turn')
+UI_SOUNDS = ('card-play', 'vote', 'accept', 'reject', 'tick', 'win', 'your-turn',
+             'deal', 'drumroll', 'topic')
+# Mỗi âm thanh có thể có thêm bản phụ <tên>-2, <tên>-3 để phát ngẫu nhiên cho đỡ nhàm
+SOUND_VARIANTS = ('', '-2', '-3')
+
+def find_ui_sounds():
+    ui_sounds = {}
+    for name in UI_SOUNDS:
+        found = [find_asset(SOUND_DIR, name + suffix, SOUND_EXTS) for suffix in SOUND_VARIANTS]
+        ui_sounds[name] = [f'/static/sounds/{f}' for f in found if f]
+    return ui_sounds
 
 @app.route('/')
 def index():
-    ui_sounds = {}
-    for name in UI_SOUNDS:
-        found = find_asset(SOUND_DIR, name, SOUND_EXTS)
-        ui_sounds[name] = f'/static/sounds/{found}' if found else None
-    return render_template('index.html', ui_sounds=ui_sounds)
+    return render_template('index.html', ui_sounds=find_ui_sounds(),
+                           topic_suggestions=TOPIC_SUGGESTIONS)
 
 # ==================== SocketIO Events ====================
 
@@ -149,10 +157,25 @@ def handle_start_game():
             emit_game_state_to_room(game.game_id)
             first = game.get_current_player()
             emit_to_room(game.game_id, 'notification', {
-                'message': f'Game bắt đầu! {first.name}, hãy chọn 1 lá bài để đánh'
+                'message': f'Game bắt đầu! {first.name}, hãy ra chủ đề cho vòng 1'
             })
         else:
             emit('error', {'message': 'Không thể bắt đầu game. Cần ít nhất 2 người chơi'})
+
+@socketio.on('set_topic')
+def handle_set_topic(data):
+    """Người mở vòng ra chủ đề"""
+    player_id = request.sid
+    with game_lock:
+        game = get_player_game(player_id)
+        if game is None:
+            return
+
+        if game.set_topic(player_id, (data or {}).get('topic')):
+            announce_topic(game)
+            emit_game_state_to_room(game.game_id)
+        else:
+            emit('error', {'message': 'Không thể ra đề lúc này. Đề không được để trống'})
 
 @socketio.on('play_card')
 def handle_play_card(data):
@@ -242,6 +265,34 @@ def finish_voting_if_complete(game):
             'message': f"🎉 {result['message']}",
             'type': 'winner'
         })
+    elif game.state == GameState.TOPIC:
+        opener = game.get_current_player()
+        emit_to_room(game.game_id, 'notification', {
+            'message': f'Vòng {game.current_round}! {opener.name}, hãy ra chủ đề mới'
+        })
+
+def announce_topic(game, timed_out=False):
+    player = game.get_current_player()
+    prefix = '⏰ Hết giờ ra đề, đề ngẫu nhiên' if timed_out else f'{player.name} ra đề'
+    emit_to_room(game.game_id, 'notification', {
+        'message': f'{prefix}: "{game.topic}". {player.name} đánh trước!'
+    })
+
+def ensure_topic_timer(game):
+    """Mỗi lần mở bước ra đề thì hẹn giờ đúng một lần"""
+    if game.state == GameState.TOPIC and game.timed_topic_id != game.topic_id:
+        game.timed_topic_id = game.topic_id
+        socketio.start_background_task(topic_timer, game.game_id, game.topic_id)
+
+def topic_timer(game_id, topic_id):
+    """Hết giờ ra đề thì lấy một đề ngẫu nhiên để ván không bị kẹt"""
+    socketio.sleep(TOPIC_SECONDS)
+    with game_lock:
+        game = games.get(game_id)
+        if game is None or game.expire_topic(topic_id) is None:
+            return
+        announce_topic(game, timed_out=True)
+        emit_game_state_to_room(game_id)
 
 def vote_timer(game_id, voting_id):
     """Hết giờ bỏ phiếu thì bỏ qua người chưa vote và chốt kết quả"""
@@ -272,7 +323,7 @@ def remove_player_from_game(player_id):
         return
 
     player = game.players.get(player_id)
-    was_running = game.state in (GameState.PLAYING, GameState.VOTING)
+    was_running = game.state in (GameState.TOPIC, GameState.PLAYING, GameState.VOTING)
     game.remove_player(player_id)
 
     if not game.players:
@@ -301,6 +352,7 @@ def emit_game_state_to_room(game_id):
     """Gửi trạng thái game cho tất cả mọi người trong phòng"""
     if game_id in games:
         game = games[game_id]
+        ensure_topic_timer(game)
 
         # Gửi player-specific state cho mỗi player
         for player_id in game.players.keys():

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meme Card Game 🎮</title>
     <link rel="stylesheet" href="/static/css/style.css">
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="/static/js/vendor/socket.io.min.js"></script>
 </head>
 <body>
     <div id="app">
@@ -88,6 +88,28 @@
 
                     <!-- Game Board -->
                     <div class="game-board">
+                        <!-- Chủ đề của vòng -->
+                        <div id="topicBanner" class="topic-banner hidden">
+                            <span id="topicRound" class="topic-round"></span>
+                            <p id="topicText" class="topic-text"></p>
+                            <span id="topicBy" class="topic-by"></span>
+                        </div>
+
+                        <!-- Bước ra đề đầu vòng -->
+                        <div id="topicPanel" class="topic-panel hidden">
+                            <h3 id="topicPanelTitle"></h3>
+                            <div id="topicForm" class="topic-form">
+                                <p class="topic-help">Gõ một tình huống để mọi người tìm ảnh meme hợp nhất. Ví dụ: "Khi sếp nhắn lúc 11h đêm"</p>
+                                <div class="topic-row">
+                                    <input id="topicInput" type="text" maxlength="100" placeholder="Chủ đề của vòng này..." autocomplete="off">
+                                    <button id="topicDiceBtn" class="btn btn-secondary" title="Gợi ý đề ngẫu nhiên">🎲</button>
+                                    <button id="topicSubmitBtn" class="btn btn-primary">Ra đề</button>
+                                </div>
+                            </div>
+                            <p id="topicWaiting" class="topic-help">Chờ một chút, chủ đề sắp tới. Hết giờ mà chưa có đề thì game tự chọn một đề ngẫu nhiên.</p>
+                            <div class="timer"><div class="timer-fill"></div><span class="timer-text"></span></div>
+                        </div>
+
                         <!-- Current Card Display -->
                         <div id="cardDisplayArea" class="card-display-area hidden">
                             <div class="card-being-played">
@@ -139,6 +161,7 @@
         <div id="voteOverlay" class="vote-overlay hidden">
             <div class="vote-box">
                 <h2>🗳️ Đến lượt bạn bỏ phiếu!</h2>
+                <p id="overlayTopic" class="overlay-topic"></p>
                 <p id="overlayPlayedBy" class="overlay-by"></p>
                 <div id="overlayCard"></div>
                 <p id="overlayHint" class="overlay-hint"></p>
@@ -171,7 +194,10 @@
         </div>
     </div>
 
-    <script>window.UI_SOUNDS = {{ ui_sounds|tojson }};</script>
+    <script>
+        window.UI_SOUNDS = {{ ui_sounds|tojson }};
+        window.TOPIC_SUGGESTIONS = {{ topic_suggestions|tojson }};
+    </script>
     <script src="/static/js/client.js"></script>
 </body>
 </html>
