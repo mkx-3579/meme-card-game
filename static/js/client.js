@@ -190,7 +190,12 @@ document.addEventListener('click', () => audio.unlock());
 document.addEventListener('keydown', () => audio.unlock());
 
 function applyAudioSettings() {
-    document.getElementById('muteBtn').textContent = audio.muted ? '🔇' : '🔊';
+    const btn = document.getElementById('muteBtn');
+    const off = audio.muted || audio.volume <= 0;
+    const use = btn.querySelector('use');
+    if (use) use.setAttribute('href', off ? '#i-mute' : '#i-sound');
+    btn.classList.toggle('off', off);
+    btn.setAttribute('aria-label', off ? 'Bật âm thanh' : 'Tắt âm thanh');
     document.getElementById('volumeSlider').value = Math.round(audio.volume * 100);
 }
 
@@ -232,9 +237,17 @@ document.getElementById('createGameBtn').addEventListener('click', () => {
     socket.emit('create_game', { name });
 });
 
-document.getElementById('joinGameBtn').addEventListener('click', () => {
-    const form = document.getElementById('joinGameForm');
-    form.classList.toggle('hidden');
+// Bản cũ có nút mở ô nhập mã; giao diện mới luôn hiện ô mã nên nút này có thể không còn
+const joinGameBtn = document.getElementById('joinGameBtn');
+if (joinGameBtn) {
+    joinGameBtn.addEventListener('click', () => {
+        const form = document.getElementById('joinGameForm');
+        if (form) form.classList.toggle('hidden');
+    });
+}
+
+document.getElementById('gameCodeInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') document.getElementById('confirmJoinBtn').click();
 });
 
 document.getElementById('confirmJoinBtn').addEventListener('click', () => {
@@ -338,13 +351,13 @@ socket.on('error', (data) => {
 function templateColor(template) {
     let hash = 0;
     for (const ch of template || '') hash = (hash * 31 + ch.charCodeAt(0)) % 360;
-    return `hsl(${hash}, 70%, 55%)`;
+    return `hsl(${hash}, 85%, 72%)`;
 }
 
 function makePlaceholder(card) {
     const box = document.createElement('div');
     box.className = 'meme-placeholder';
-    box.style.background = `linear-gradient(135deg, ${templateColor(card.template)}, #312e81)`;
+    box.style.background = templateColor(card.template);
     const emoji = document.createElement('div');
     emoji.className = 'meme-emoji';
     emoji.textContent = card.emoji || '🎴';
@@ -422,6 +435,26 @@ function renderMemeCard(card, size) {
 
 // ==================== Utility Functions ====================
 
+// Màu avatar theo thứ tự người chơi trong phòng
+const AVATAR_COLORS = ['#ffd23f', '#3da5ff', '#ff5c8a', '#2ec27e', '#ff8a3d', '#b28dff', '#5ad1c8', '#ffb3c7'];
+
+function makeAvatar(state, player) {
+    const index = state.players.findIndex(p => p.player_id === player.player_id);
+    const avatar = document.createElement('span');
+    avatar.className = 'avatar';
+    avatar.setAttribute('aria-hidden', 'true');
+    avatar.style.background = AVATAR_COLORS[Math.max(0, index) % AVATAR_COLORS.length];
+    avatar.textContent = (Array.from(String(player.name || '?').trim())[0] || '?').toUpperCase();
+    return avatar;
+}
+
+function makeTag(text, extra) {
+    const tag = document.createElement('span');
+    tag.className = 'tag' + (extra ? ' ' + extra : '');
+    tag.textContent = text;
+    return tag;
+}
+
 function updateWaitingRoom() {
     // Mã game hiển thị dạng HOA cho dễ đọc, server chấp nhận cả HOA lẫn thường
     document.getElementById('gameCodeDisplay').textContent = gameState.gameId.toUpperCase();
@@ -437,14 +470,19 @@ function updateWaitingRoomPlayers(state) {
         div.className = 'player-item';
 
         const isMePlayer = player.player_id === gameState.playerId;
-        let prefix = isMePlayer ? '👤 ' : '';
-        if (player.player_id === state.host_id) prefix += '👑 ';
+        div.appendChild(makeAvatar(state, player));
 
         // Dùng textContent để tên người chơi không thể chèn HTML/script
-        div.appendChild(document.createTextNode(prefix));
         const name = document.createElement('strong');
+        name.className = 'player-name';
         name.textContent = player.name;
         div.appendChild(name);
+
+        const tags = document.createElement('span');
+        tags.className = 'player-tags';
+        if (isMePlayer) tags.appendChild(makeTag('Bạn', 'tag-me'));
+        if (player.player_id === state.host_id) tags.appendChild(makeTag('Chủ phòng', 'tag-host'));
+        div.appendChild(tags);
         container.appendChild(div);
     });
 }
@@ -453,20 +491,20 @@ function updateStartButton(state) {
     const btn = document.getElementById('startGameBtn');
     const playerCount = state.players.length;
 
-    const countDisplay = document.querySelector('.room-box h3');
+    const countDisplay = document.getElementById('waitingCount');
     if (countDisplay) {
-        countDisplay.textContent = `👥 Người chơi (${playerCount}/8)`;
+        countDisplay.textContent = `Người chơi (${playerCount}/8)`;
     }
 
     if (state.host_id !== gameState.playerId) {
         btn.disabled = true;
-        btn.textContent = '⏳ Chờ chủ phòng bắt đầu...';
+        btn.textContent = 'Chờ chủ phòng bắt đầu...';
     } else if (playerCount >= 2) {
         btn.disabled = false;
-        btn.textContent = `▶️ Bắt Đầu Game (${playerCount} người)`;
+        btn.textContent = `Bắt đầu chơi (${playerCount} người)`;
     } else {
         btn.disabled = true;
-        btn.textContent = `▶️ Bắt Đầu Game (Cần ≥2 người)`;
+        btn.textContent = 'Bắt đầu (cần ít nhất 2 người)';
     }
 }
 
@@ -480,6 +518,10 @@ function updateGameScreen(state) {
     ui.lastState = state;
 
     document.getElementById('roundNum').textContent = state.round;
+    // Chỉ để CSS đổi bố cục theo giai đoạn (ra đề / đánh / bỏ phiếu)
+    document.getElementById('gameScreen').dataset.state = state.state;
+    const roomChip = document.getElementById('roomChip');
+    if (roomChip && gameState.gameId) roomChip.textContent = `Phòng ${gameState.gameId.toUpperCase()}`;
 
     updatePlayersStatus(state, prev);
     updateMyHand(state, prev);
@@ -571,9 +613,9 @@ function showResult(state, result) {
 
     // Cho mọi người thấy ai vote gì
     const details = Object.entries(result.votes || {})
-        .map(([pid, v]) => `${playerName(state, pid)} ${v ? '✅' : '❌'}`)
+        .map(([pid, v]) => `${playerName(state, pid)} ${v ? 'hợp đề' : 'không hợp'}`)
         .join(', ');
-    if (details) addNotification(`🗳️ ${details}`);
+    if (details) addNotification(`Phiếu bầu: ${details}`);
 
     clearTimeout(ui.stampTimer);
     ui.stampTimer = setTimeout(() => stamp.classList.add('hidden'), 2500);
@@ -592,7 +634,7 @@ function floatPoint(playerId) {
     if (!row) return;
     const plus = document.createElement('span');
     plus.className = 'float-point';
-    plus.textContent = '+1 ⭐';
+    plus.textContent = '+1';
     row.appendChild(plus);
     setTimeout(() => plus.remove(), 1500);
 }
@@ -611,28 +653,48 @@ function updatePlayersStatus(state) {
 
         const isCurrentPlayer = player.player_id === currentPlayerId;
         const isMePlayer = player.player_id === gameState.playerId;
+        const isWinner = player.player_id === state.winner_id;
         if (isCurrentPlayer) div.classList.add('current');
+        if (isWinner) div.classList.add('winner');
 
-        let prefix = '';
-        if (isCurrentPlayer) prefix = '👉 ';
-        if (isMePlayer) prefix += '👤 ';
-        if (player.player_id === state.winner_id) prefix += '🏆 ';
+        div.appendChild(makeAvatar(state, player));
 
-        div.appendChild(document.createTextNode(prefix));
+        const info = document.createElement('span');
+        info.className = 'player-info';
         const name = document.createElement('strong');
-        name.textContent = player.name;
-        div.appendChild(name);
+        name.className = 'player-name';
+        name.textContent = player.name + (isMePlayer ? ' (bạn)' : '');
+        info.appendChild(name);
 
-        if (state.state === 'voting' && player.player_id in voted) {
+        const note = document.createElement('span');
+        note.className = 'player-note';
+        if (isWinner) {
+            note.textContent = 'Thắng ván!';
+        } else if (state.state === 'voting' && player.player_id in voted) {
             const badge = document.createElement('span');
             badge.className = 'vote-badge ' + (voted[player.player_id] ? 'done' : 'waiting');
-            badge.textContent = voted[player.player_id] ? '✓ đã vote' : '⏳ đang chọn';
-            div.appendChild(badge);
+            badge.textContent = voted[player.player_id] ? 'Đã chấm' : 'Đang chọn';
+            note.appendChild(badge);
+        } else if (state.state === 'voting' && state.current_card && state.current_card.played_by === player.player_id) {
+            note.textContent = 'Vừa đánh bài';
+        } else if (isCurrentPlayer) {
+            note.textContent = state.state === 'topic' ? 'Đang ra đề...' : 'Đang chọn bài...';
+        } else if (player.player_id === state.host_id) {
+            note.textContent = 'Chủ phòng';
+        } else {
+            note.textContent = 'Đang chờ';
         }
+        info.appendChild(note);
+        div.appendChild(info);
 
         const score = document.createElement('span');
         score.className = 'player-score';
-        score.textContent = ` 🎴 ${player.hand_count} | ⭐ ${player.score}`;
+        const points = document.createElement('b');
+        points.textContent = `${player.score} điểm`;
+        const cards = document.createElement('span');
+        cards.textContent = `${player.hand_count} lá`;
+        score.appendChild(points);
+        score.appendChild(cards);
         div.appendChild(score);
 
         container.appendChild(div);
@@ -655,19 +717,19 @@ function updateMyHand(state, prev) {
 
     const statusEl = document.getElementById('handStatus');
     if (isGameOver) {
-        statusEl.textContent = '🏁 Ván đã kết thúc';
+        statusEl.textContent = 'Ván đã kết thúc';
     } else if (isVoting && state.can_vote && state.my_vote === null) {
-        statusEl.textContent = '🗳️ Đến lượt bạn bỏ phiếu!';
+        statusEl.textContent = 'Đến lượt bạn bỏ phiếu!';
     } else if (isVoting) {
-        statusEl.textContent = '🗳️ Đang chờ mọi người bỏ phiếu...';
+        statusEl.textContent = 'Đang chờ mọi người bỏ phiếu...';
     } else if (isTopic) {
         statusEl.textContent = state.current_player_id === gameState.playerId
-            ? '📢 Bạn ra đề trước, rồi đánh lá đầu tiên'
-            : `⏳ Đang chờ ${playerName(state, state.current_player_id)} ra đề...`;
+            ? 'Bạn ra đề trước, rồi đánh lá đầu tiên'
+            : `Chờ ${playerName(state, state.current_player_id)} ra đề...`;
     } else if (isMyTurn) {
-        statusEl.textContent = '👉 Lượt của bạn! Chọn 1 ảnh hợp với chủ đề để đánh';
+        statusEl.textContent = 'Lượt của bạn! Chạm một ảnh hợp đề để đánh';
     } else {
-        statusEl.textContent = `⏳ Đang chờ ${playerName(state, state.current_player_id)} đánh bài...`;
+        statusEl.textContent = `Chờ ${playerName(state, state.current_player_id)} đánh bài...`;
     }
 
     // Lá nào mới vào tay thì cho bay vào
@@ -682,8 +744,19 @@ function updateMyHand(state, prev) {
             el.classList.add('deal-in');
             el.style.animationDelay = `${index * 60}ms`;
         }
+        el.setAttribute('aria-label', `Lá bài ${index + 1}${card && card.name ? ': ' + card.name : ''}`);
         if (isMyTurn) {
+            el.setAttribute('role', 'button');
+            el.tabIndex = 0;
             el.onclick = () => playCard(index, el);
+            el.onkeydown = e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    playCard(index, el);
+                }
+            };
+        } else {
+            el.setAttribute('aria-disabled', 'true');
         }
         container.appendChild(el);
     });
@@ -691,14 +764,16 @@ function updateMyHand(state, prev) {
 
 function updateGameStatus(state) {
     const statusEl = document.getElementById('gameStatus');
+    const isMe = state.current_player_id === gameState.playerId;
+    const who = isMe ? 'bạn' : playerName(state, state.current_player_id);
     if (state.state === 'topic') {
-        statusEl.textContent = '📢 Ra đề';
+        statusEl.textContent = isMe ? 'Bạn ra đề!' : `${who} ra đề`;
     } else if (state.state === 'playing') {
-        statusEl.textContent = '⏳ Đang chơi';
+        statusEl.textContent = isMe ? 'Lượt của bạn!' : `Lượt của ${who}`;
     } else if (state.state === 'voting') {
-        statusEl.textContent = '🗳️ Bỏ phiếu';
+        statusEl.textContent = 'Bỏ phiếu';
     } else if (state.state === 'game_end') {
-        statusEl.textContent = '🏁 Kết thúc';
+        statusEl.textContent = 'Kết thúc';
     } else {
         statusEl.textContent = state.state;
     }
@@ -709,8 +784,8 @@ function updateCardDisplay(state) {
     area.classList.remove('hidden');
 
     area.querySelector('h3').textContent = state.state === 'voting'
-        ? (state.current_card.is_final_card ? 'Lá bài đang xét (LÁ CUỐI, cần 1/2):' : 'Lá bài đang xét:')
-        : 'Lá bài vừa xét:';
+        ? (state.current_card.is_final_card ? 'Lá cuối, cần 1/2 đồng ý' : 'Lá đang xét')
+        : 'Lá vừa xét';
 
     const contentEl = document.getElementById('currentCardContent');
     const cardKey = state.voting_id;
@@ -721,11 +796,11 @@ function updateCardDisplay(state) {
     }
 
     document.getElementById('cardPlayedBy').textContent =
-        `👤 ${playerName(state, state.current_card.played_by)} đã đánh`;
+        `${playerName(state, state.current_card.played_by)} vừa đánh lá này`;
 
     const votingInfo = document.getElementById('votingInfo');
     if (state.state === 'voting') {
-        votingInfo.textContent = `🗳️ Bỏ phiếu: ${state.votes_count}/${state.total_voters}`;
+        votingInfo.textContent = `Đã chấm ${state.votes_count}/${state.total_voters}`;
     } else {
         votingInfo.textContent = '';
     }
@@ -753,7 +828,7 @@ function updateVotingPanel(state) {
         invalidBtn.disabled = true;
         validBtn.classList.remove('hidden');
         invalidBtn.classList.remove('hidden');
-        prompt.textContent = myVote ? '✅ Bạn bỏ phiếu HỢP LỆ' : '❌ Bạn bỏ phiếu KHÔNG HỢP LỆ';
+        prompt.textContent = myVote ? 'Bạn đã chấm: Hợp đề' : 'Bạn đã chấm: Không hợp';
     } else {
         validBtn.classList.remove('hidden');
         invalidBtn.classList.remove('hidden');
@@ -766,14 +841,18 @@ function updateVotingPanel(state) {
         `Đã bỏ phiếu: ${state.votes_count}/${state.total_voters}`;
 
     // Danh sách ai đã vote / đang chờ ai
-    const list = document.getElementById('voterList');
-    list.innerHTML = '';
-    (state.voters || []).forEach(v => {
-        const li = document.createElement('li');
-        li.className = v.voted ? 'done' : 'waiting';
-        li.textContent = `${v.voted ? '✓' : '⏳'} ${playerName(state, v.player_id)}`
-            + (v.player_id === gameState.playerId ? ' (bạn)' : '');
-        list.appendChild(li);
+    ['voterList', 'overlayVoters'].forEach(id => {
+        const list = document.getElementById(id);
+        if (!list) return;
+        list.innerHTML = '';
+        (state.voters || []).forEach(v => {
+            const li = document.createElement('li');
+            li.className = v.voted ? 'done' : 'waiting';
+            li.textContent = playerName(state, v.player_id)
+                + (v.player_id === gameState.playerId ? ' (bạn)' : '')
+                + (v.voted ? ' đã chấm' : ' đang chờ');
+            list.appendChild(li);
+        });
     });
 
     // Bảng vote lớn giữa màn hình cho người chưa vote
@@ -786,9 +865,13 @@ function updateVotingPanel(state) {
         }
         document.getElementById('overlayPlayedBy').textContent =
             `${playerName(state, state.current_card.played_by)} vừa đánh lá này`;
-        document.getElementById('overlayTopic').textContent = state.topic ? `📢 ${state.topic}` : '';
-        document.getElementById('overlayHint').textContent = state.current_card.is_final_card
-            ? '⚠️ Đây là LÁ CUỐI: chỉ cần 1/2 đồng ý là người đó thắng!'
+        document.getElementById('overlayTopic').textContent = state.topic || '';
+        const topicBox = document.getElementById('overlayTopicBox');
+        if (topicBox) topicBox.classList.toggle('hidden', !state.topic);
+        const hint = document.getElementById('overlayHint');
+        hint.classList.toggle('final', !!state.current_card.is_final_card);
+        hint.textContent = state.current_card.is_final_card
+            ? 'Đây là lá cuối: chỉ cần 1/2 đồng ý là người đó thắng!'
             : 'Cần 3/4 số phiếu đồng ý để lá được chấp nhận.';
         overlay.classList.remove('hidden');
     } else {
@@ -809,7 +892,7 @@ function updateTopic(state) {
         document.getElementById('topicRound').textContent = `Chủ đề vòng ${state.round}`;
         // textContent: chữ người chơi gõ không bao giờ được hiểu là HTML
         document.getElementById('topicText').textContent = state.topic;
-        document.getElementById('topicBy').textContent = `ra đề bởi ${playerName(state, state.round_opener_id)}`;
+        document.getElementById('topicBy').textContent = `${playerName(state, state.round_opener_id)} ra đề`;
     }
 
     if (state.state !== 'topic') {
@@ -819,8 +902,8 @@ function updateTopic(state) {
     panel.classList.remove('hidden');
     const isSetter = state.current_player_id === gameState.playerId;
     document.getElementById('topicPanelTitle').textContent = isSetter
-        ? `📢 Vòng ${state.round}: bạn ra chủ đề!`
-        : `📢 Vòng ${state.round}: ${playerName(state, state.current_player_id)} đang ra chủ đề...`;
+        ? `Vòng ${state.round}: bạn ra chủ đề!`
+        : `Vòng ${state.round}: ${playerName(state, state.current_player_id)} đang ra chủ đề...`;
     document.getElementById('topicForm').classList.toggle('hidden', !isSetter);
     document.getElementById('topicWaiting').classList.toggle('hidden', isSetter);
     const input = document.getElementById('topicInput');
@@ -887,7 +970,7 @@ function renderTimer() {
     const ratio = Math.min(1, msLeft / (ui.voteSeconds * 1000));
     document.querySelectorAll('.timer').forEach(timer => {
         timer.querySelector('.timer-fill').style.width = `${ratio * 100}%`;
-        timer.querySelector('.timer-text').textContent = `⏰ ${seconds}s`;
+        timer.querySelector('.timer-text').textContent = `${seconds}s`;
         timer.classList.toggle('urgent', seconds <= 5);
     });
     // Trống dồn 5 giây cuối khi bỏ phiếu, cho cả phòng
@@ -914,7 +997,7 @@ function launchConfetti() {
     canvas.height = window.innerHeight;
     canvas.classList.remove('hidden');
 
-    const colors = ['#f59e0b', '#10b981', '#ef4444', '#667eea', '#ec4899', '#fde047'];
+    const colors = ['#ffd23f', '#ff5c8a', '#3da5ff', '#2ec27e', '#ff4d3d', '#1a1a1a'];
     const pieces = Array.from({ length: 160 }, () => ({
         x: Math.random() * canvas.width,
         y: -20 - Math.random() * canvas.height * 0.5,
@@ -956,7 +1039,7 @@ function launchConfetti() {
 
 // Khung "Diễn biến": một danh sách liền, có thể thu gọn
 const LOG_MAX_LINES = 40;
-let logCollapsed = loadSetting('logCollapsed', false);
+let logCollapsed = loadSetting('logCollapsed', true);
 let logUnread = 0;
 
 function applyLogCollapsed() {
@@ -1029,13 +1112,13 @@ function backToLogin() {
     showScreen('loginScreen');
     document.getElementById('playerName').value = '';
     document.getElementById('gameCodeInput').value = '';
-    document.getElementById('joinGameForm').classList.add('hidden');
     document.getElementById('winnerModal').classList.add('hidden');
     document.getElementById('voteOverlay').classList.add('hidden');
     document.getElementById('cardDisplayArea').classList.add('hidden');
     document.getElementById('currentCardContent').dataset.key = '';
     document.getElementById('overlayCard').dataset.key = '';
     document.getElementById('notifications').innerHTML = '';
+    delete document.getElementById('gameScreen').dataset.state;
     document.getElementById('logLatest').textContent = '';
     logUnread = 0;
     applyLogCollapsed();
