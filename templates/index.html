@@ -71,6 +71,11 @@
                         <span>|</span>
                         <span id="gameStatus">Đang chờ...</span>
                     </div>
+                    <div class="settings-bar">
+                        <button id="muteBtn" class="icon-btn" title="Bật/tắt âm thanh">🔊</button>
+                        <input id="volumeSlider" type="range" min="0" max="100" value="70" title="Âm lượng">
+                        <button id="fxBtn" class="icon-btn" title="Bật/tắt hiệu ứng">✨</button>
+                    </div>
                 </div>
 
                 <!-- Main Game Area -->
@@ -87,14 +92,17 @@
                         <div id="cardDisplayArea" class="card-display-area hidden">
                             <div class="card-being-played">
                                 <h3>Lá bài đang xét:</h3>
-                                <div id="currentCardContent" class="card-content"></div>
+                                <div class="stage">
+                                    <div id="currentCardContent"></div>
+                                    <div id="resultStamp" class="stamp hidden"></div>
+                                </div>
                                 <p id="cardPlayedBy" class="card-by"></p>
                                 <div id="votingInfo"></div>
                             </div>
                         </div>
 
                         <!-- My Hand -->
-                        <div class="my-hand">
+                        <div id="myHand" class="my-hand">
                             <h3>🎴 Tay bài của bạn:</h3>
                             <div id="myHandCards" class="cards-container"></div>
                             <p id="handStatus" class="status-text"></p>
@@ -105,11 +113,13 @@
                     <div id="votingPanel" class="voting-panel hidden">
                         <h3>🗳️ Bình Chọn</h3>
                         <p id="votingPrompt">Lá bài này có hợp lệ không?</p>
+                        <div class="timer"><div class="timer-fill"></div><span class="timer-text"></span></div>
                         <div class="voting-buttons">
                             <button id="validBtn" class="btn btn-success">✅ Hợp Lệ</button>
                             <button id="invalidBtn" class="btn btn-danger">❌ Không Hợp Lệ</button>
                         </div>
                         <div id="votesDisplay" class="votes-display"></div>
+                        <ul id="voterList" class="voter-list"></ul>
                     </div>
                 </div>
 
@@ -124,6 +134,23 @@
                 </div>
             </div>
         </div>
+
+        <!-- Bảng bỏ phiếu lớn cho người cần vote -->
+        <div id="voteOverlay" class="vote-overlay hidden">
+            <div class="vote-box">
+                <h2>🗳️ Đến lượt bạn bỏ phiếu!</h2>
+                <p id="overlayPlayedBy" class="overlay-by"></p>
+                <div id="overlayCard"></div>
+                <p id="overlayHint" class="overlay-hint"></p>
+                <div class="timer big"><div class="timer-fill"></div><span class="timer-text"></span></div>
+                <div class="overlay-buttons">
+                    <button id="overlayValidBtn" class="btn btn-success btn-huge">✅ Hợp lệ</button>
+                    <button id="overlayInvalidBtn" class="btn btn-danger btn-huge">❌ Không hợp lệ</button>
+                </div>
+            </div>
+        </div>
+
+        <canvas id="confetti" class="confetti hidden"></canvas>
 
         <!-- Error Modal -->
         <div id="errorModal" class="modal hidden">
@@ -144,6 +171,7 @@
         </div>
     </div>
 
+    <script>window.UI_SOUNDS = {{ ui_sounds|tojson }};</script>
     <script src="/static/js/client.js"></script>
 </body>
 </html>
