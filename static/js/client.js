@@ -41,6 +41,22 @@ function saveSetting(key, value) {
     } catch (e) { /* trình duyệt chặn lưu thì thôi */ }
 }
 
+// Tên + mã phòng gần nhất nhớ trong phiên (tab) hiện tại: rời phòng hay bị văng
+// ra vẫn còn, mở tab / phiên web mới thì nhập lại
+function loadSession(key) {
+    try {
+        return sessionStorage.getItem('memecard.' + key) || '';
+    } catch (e) {
+        return '';
+    }
+}
+
+function saveSession(key, value) {
+    try {
+        sessionStorage.setItem('memecard.' + key, value);
+    } catch (e) { /* trình duyệt chặn lưu thì thôi */ }
+}
+
 const prefersReducedMotion = window.matchMedia
     && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -234,6 +250,7 @@ document.getElementById('createGameBtn').addEventListener('click', () => {
         return;
     }
     gameState.playerName = name;
+    saveSession('name', name);
     socket.emit('create_game', { name });
 });
 
@@ -264,6 +281,7 @@ document.getElementById('confirmJoinBtn').addEventListener('click', () => {
     }
 
     gameState.playerName = name;
+    saveSession('name', name);
     socket.emit('join_game', { game_id: gameCode, name });
 });
 
@@ -275,6 +293,71 @@ document.getElementById('startGameBtn').addEventListener('click', () => {
 
 document.getElementById('leaveGameBtn').addEventListener('click', () => {
     leaveGame();
+});
+
+function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+        return navigator.clipboard.writeText(text);
+    }
+    // Trang chạy http (mạng LAN) không có clipboard API: dùng cách cũ
+    return new Promise((resolve, reject) => {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        const ok = document.execCommand && document.execCommand('copy');
+        area.remove();
+        ok ? resolve() : reject(new Error('copy failed'));
+    });
+}
+
+let copyResetHandle = null;
+
+function copyRoomCode() {
+    if (!gameState.gameId) return;
+    const code = gameState.gameId.toUpperCase();
+    const btn = document.getElementById('copyCodeBtn');
+    const hint = document.getElementById('copyCodeHint');
+    const chip = document.getElementById('roomChip');
+    copyText(code).then(() => {
+        btn.classList.add('copied');
+        hint.textContent = `Đã copy mã ${code}, dán gửi bạn bè thôi!`;
+        chip.textContent = 'Đã copy mã!';
+        addNotification(`Đã copy mã phòng ${code}`);
+    }).catch(() => {
+        hint.textContent = `Không copy được, hãy gửi mã ${code} cho bạn bè`;
+    }).finally(() => {
+        clearTimeout(copyResetHandle);
+        copyResetHandle = setTimeout(() => {
+            btn.classList.remove('copied');
+            hint.textContent = 'Gửi mã này cho bạn bè để vào cùng bàn';
+            if (gameState.gameId) chip.textContent = `Phòng ${gameState.gameId.toUpperCase()}`;
+        }, 2000);
+    });
+}
+
+document.getElementById('copyCodeBtn').addEventListener('click', copyRoomCode);
+document.getElementById('roomChip').addEventListener('click', copyRoomCode);
+
+function sendSettings() {
+    socket.emit('update_settings', {
+        time_limit: Number(document.getElementById('timeLimitSelect').value),
+        max_rounds: Number(document.getElementById('maxRoundsSelect').value)
+    });
+}
+
+document.getElementById('timeLimitSelect').addEventListener('change', sendSettings);
+document.getElementById('maxRoundsSelect').addEventListener('change', sendSettings);
+
+document.getElementById('winnerLobbyBtn').addEventListener('click', () => {
+    document.getElementById('winnerModal').classList.add('hidden');
+    // Chủ phòng bấm thì cả phòng về luôn, người khác chỉ đóng bảng và chờ
+    if (ui.lastState && ui.lastState.host_id === gameState.playerId) {
+        socket.emit('back_to_lobby');
+    }
 });
 
 // ==================== Game Screen Events ====================
@@ -304,6 +387,7 @@ document.getElementById('overlayInvalidBtn').addEventListener('click', () => sen
 socket.on('game_created', (data) => {
     gameState.gameId = data.game_id;
     gameState.playerId = data.player_id;
+    saveSession('room', data.game_id);
     showScreen('waitingScreen');
     updateWaitingRoom();
 });
@@ -311,6 +395,7 @@ socket.on('game_created', (data) => {
 socket.on('game_joined', (data) => {
     gameState.gameId = data.game_id;
     gameState.playerId = data.player_id;
+    saveSession('room', data.game_id);
     showScreen('waitingScreen');
     updateWaitingRoom();
 });
@@ -326,9 +411,27 @@ socket.on('game_state', (state) => {
         }
         updateGameScreen(state);
     } else {
+        if (gameState.gameStarted) {
+            // Hết ván: phòng vẫn còn, cả phòng quay lại phòng chờ
+            gameState.gameStarted = false;
+            resetGameUi();
+            showScreen('waitingScreen');
+        }
+        ui.lastState = state;
         updateWaitingRoomPlayers(state);
         updateStartButton(state);
+        updateSettingsPanel(state);
     }
+});
+
+// Bị văng (mất mạng, server khởi động lại): server đã cho mình rời phòng,
+// đưa về trang chủ với tên và mã phòng điền sẵn để vào lại cho nhanh
+socket.on('connect', () => {
+    if (!gameState.gameId) return;
+    const room = gameState.gameId;
+    backToLogin();
+    document.getElementById('gameCodeInput').value = room.toUpperCase();
+    showError(`Bạn bị mất kết nối khỏi phòng ${room.toUpperCase()}. Bấm "Vào" để vào lại.`);
 });
 
 socket.on('notification', (data) => {
@@ -487,13 +590,46 @@ function updateWaitingRoomPlayers(state) {
     });
 }
 
+function formatLimit(value, unit) {
+    return value ? `${value} ${unit}` : 'Không giới hạn';
+}
+
+function fillSelect(select, choices, value, unit) {
+    const key = choices.join(',');
+    if (select.dataset.key !== key) {
+        select.dataset.key = key;
+        select.innerHTML = '';
+        choices.forEach(choice => {
+            const option = document.createElement('option');
+            option.value = String(choice);
+            option.textContent = formatLimit(choice, unit);
+            select.appendChild(option);
+        });
+    }
+    select.value = String(value);
+}
+
+function updateSettingsPanel(state) {
+    const settings = state.settings || { time_limit: 0, max_rounds: 0 };
+    const isHost = state.host_id === gameState.playerId;
+    const timeSelect = document.getElementById('timeLimitSelect');
+    const roundsSelect = document.getElementById('maxRoundsSelect');
+    fillSelect(timeSelect, state.time_limit_choices || [0], settings.time_limit, 'phút');
+    fillSelect(roundsSelect, state.max_rounds_choices || [0], settings.max_rounds, 'vòng');
+    timeSelect.disabled = !isHost;
+    roundsSelect.disabled = !isHost;
+    document.getElementById('settingsNote').textContent = isHost
+        ? 'Hết giờ hoặc hết số vòng mà chưa ai hết bài thì người còn ít bài nhất thắng.'
+        : 'Chủ phòng chọn thời gian và số vòng. Hết giờ hoặc hết vòng thì người còn ít bài nhất thắng.';
+}
+
 function updateStartButton(state) {
     const btn = document.getElementById('startGameBtn');
     const playerCount = state.players.length;
 
     const countDisplay = document.getElementById('waitingCount');
     if (countDisplay) {
-        countDisplay.textContent = `Người chơi (${playerCount}/8)`;
+        countDisplay.textContent = `Người chơi (${playerCount}/${state.max_players || 8})`;
     }
 
     if (state.host_id !== gameState.playerId) {
@@ -508,6 +644,52 @@ function updateStartButton(state) {
     }
 }
 
+// Giới hạn ván: "Vòng 2/5" và đồng hồ đếm ngược cả ván
+let matchTimer = { deadline: null, handle: null };
+
+function updateMatchLimits(state) {
+    const settings = state.settings || {};
+    const roundChip = document.getElementById('roundLimitChip');
+    roundChip.classList.toggle('hidden', !settings.max_rounds);
+    if (settings.max_rounds) roundChip.textContent = `Tối đa ${settings.max_rounds} vòng`;
+
+    const chip = document.getElementById('matchTimerChip');
+    const left = state.match_time_left;
+    if (left === null || left === undefined) {
+        matchTimer.deadline = null;
+        chip.classList.add('hidden');
+        clearInterval(matchTimer.handle);
+        matchTimer.handle = null;
+        return;
+    }
+    matchTimer.deadline = Date.now() + left * 1000;
+    chip.classList.remove('hidden');
+    if (!matchTimer.handle) matchTimer.handle = setInterval(renderMatchTimer, 500);
+    renderMatchTimer();
+}
+
+function renderMatchTimer() {
+    if (!matchTimer.deadline) return;
+    const seconds = Math.max(0, Math.ceil((matchTimer.deadline - Date.now()) / 1000));
+    const mm = Math.floor(seconds / 60);
+    const ss = String(seconds % 60).padStart(2, '0');
+    document.getElementById('matchTimerText').textContent = `Còn ${mm}:${ss}`;
+    document.getElementById('matchTimerChip').classList.toggle('urgent', seconds <= 30);
+}
+
+function updateSpectators(state) {
+    const spectators = state.spectators || [];
+    document.getElementById('spectatorsBox').classList.toggle('hidden', spectators.length === 0);
+    const list = document.getElementById('spectatorsList');
+    list.innerHTML = '';
+    spectators.forEach(s => {
+        const li = document.createElement('li');
+        li.textContent = s.name + (s.player_id === gameState.playerId ? ' (bạn)' : '');
+        list.appendChild(li);
+    });
+    document.getElementById('spectatorNote').classList.toggle('hidden', !state.is_spectator);
+}
+
 function playerName(state, playerId) {
     const p = state.players.find(pl => pl.player_id === playerId);
     return p ? p.name : 'Ai đó';
@@ -518,12 +700,14 @@ function updateGameScreen(state) {
     ui.lastState = state;
 
     document.getElementById('roundNum').textContent = state.round;
+    updateMatchLimits(state);
     // Chỉ để CSS đổi bố cục theo giai đoạn (ra đề / đánh / bỏ phiếu)
     document.getElementById('gameScreen').dataset.state = state.state;
     const roomChip = document.getElementById('roomChip');
     if (roomChip && gameState.gameId) roomChip.textContent = `Phòng ${gameState.gameId.toUpperCase()}`;
 
     updatePlayersStatus(state, prev);
+    updateSpectators(state);
     updateMyHand(state, prev);
     updateGameStatus(state);
 
@@ -706,7 +890,13 @@ function updateMyHand(state, prev) {
     container.innerHTML = '';
 
     const myPlayer = state.players.find(p => p.player_id === gameState.playerId);
-    if (!myPlayer) return;
+    if (!myPlayer) {
+        document.getElementById('myHand').classList.remove('my-turn');
+        document.getElementById('handStatus').textContent = state.state === 'game_end'
+            ? 'Ván đã kết thúc, sắp vào phòng chờ...'
+            : 'Bạn đang xem, ván sau sẽ được chia bài';
+        return;
+    }
 
     const isGameOver = state.state === 'game_end';
     const isVoting = state.state === 'voting';
@@ -717,7 +907,7 @@ function updateMyHand(state, prev) {
 
     const statusEl = document.getElementById('handStatus');
     if (isGameOver) {
-        statusEl.textContent = 'Ván đã kết thúc';
+        statusEl.textContent = 'Ván đã kết thúc, sắp về phòng chờ...';
     } else if (isVoting && state.can_vote && state.my_vote === null) {
         statusEl.textContent = 'Đến lượt bạn bỏ phiếu!';
     } else if (isVoting) {
@@ -1096,7 +1286,24 @@ function backToLogin() {
     gameState.gameStarted = false;
     gameState.gameId = null;
     gameState.playerId = null;
+    resetGameUi();
+    showScreen('loginScreen');
+    document.getElementById('winnerModal').classList.add('hidden');
+    // Tên giữ nguyên trong phiên, chỉ xóa mã phòng
+    document.getElementById('playerName').value = loadSession('name');
+    document.getElementById('gameCodeInput').value = '';
+    document.getElementById('notifications').innerHTML = '';
+    document.getElementById('logLatest').textContent = '';
+    logUnread = 0;
+    applyLogCollapsed();
+}
+
+// Dọn màn chơi (dùng khi rời phòng, và khi hết ván quay về phòng chờ)
+function resetGameUi() {
     stopTimer();
+    matchTimer.deadline = null;
+    clearInterval(matchTimer.handle);
+    matchTimer.handle = null;
     ui = {
         lastState: null,
         seenVotingId: 0,
@@ -1109,23 +1316,17 @@ function backToLogin() {
         lastTickSecond: null,
         winShown: false
     };
-    showScreen('loginScreen');
-    document.getElementById('playerName').value = '';
-    document.getElementById('gameCodeInput').value = '';
-    document.getElementById('winnerModal').classList.add('hidden');
     document.getElementById('voteOverlay').classList.add('hidden');
     document.getElementById('cardDisplayArea').classList.add('hidden');
     document.getElementById('currentCardContent').dataset.key = '';
     document.getElementById('overlayCard').dataset.key = '';
-    document.getElementById('notifications').innerHTML = '';
+    document.getElementById('topicPanel').dataset.key = '';
     delete document.getElementById('gameScreen').dataset.state;
-    document.getElementById('logLatest').textContent = '';
-    logUnread = 0;
-    applyLogCollapsed();
 }
 
 // ==================== Initial Setup ====================
 
 applyEffectsSetting();
 applyAudioSettings();
+document.getElementById('playerName').value = loadSession('name');
 showScreen('loginScreen');

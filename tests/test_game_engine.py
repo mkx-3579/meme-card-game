@@ -430,3 +430,83 @@ class TestTopic(unittest.TestCase):
         self.assertEqual(order, ['C', 'D'])
         # A là người cuối của vòng 2
         self.assertEqual(game.get_current_player().player_id, 'A')
+
+
+class TestRoomLifecycle(unittest.TestCase):
+    """Cài đặt ván, người vào giữa ván, hết ván quay về phòng chờ"""
+
+    def make(self, names='AB', **settings):
+        clock = FakeClock()
+        game = Game('t', seed=SEED, clock=clock)
+        for name in names:
+            game.add_player(name, name)
+        if settings:
+            self.assertTrue(game.update_settings('A', **settings))
+        game.start_game()
+        return game, clock
+
+    def test_only_host_in_lobby_can_change_settings(self):
+        game = make_game('AB', start=False)
+        self.assertFalse(game.update_settings('B', time_limit=10))
+        self.assertFalse(game.update_settings('A', time_limit=7))  # không có trong lựa chọn
+        self.assertTrue(game.update_settings('A', time_limit=10, max_rounds=3))
+        self.assertEqual((game.time_limit, game.max_rounds), (10, 3))
+        game.start_game()
+        self.assertFalse(game.update_settings('A', time_limit=5))
+
+    def test_time_limit_ends_game_with_fewest_cards_winning(self):
+        game, clock = self.make(time_limit=5)
+        self.assertEqual(game.match_time_left(), 300)
+        set_topic(game)
+        play_turn(game, True)  # A còn 4 lá, B còn 5
+        self.assertFalse(game.expire_match(game.game_number - 1))  # hẹn giờ ván cũ
+        clock.now += 300
+        self.assertTrue(game.expire_match(game.game_number))
+        self.assertEqual(game.state, GameState.GAME_END)
+        self.assertEqual(game.winner_id, 'A')
+        self.assertEqual(game.end_reason, 'time')
+
+    def test_round_limit_ends_game(self):
+        game, _ = self.make(max_rounds=3)
+        for _ in range(3):  # Mỗi vòng: người mở vòng bị từ chối, người kia được chấp nhận
+            play_turn(game, False)
+            self.assertNotEqual(game.state, GameState.GAME_END)
+            play_turn(game, True)
+        self.assertEqual(game.state, GameState.GAME_END)
+        self.assertEqual(game.winner_id, 'B')
+        self.assertEqual(game.end_reason, 'rounds')
+
+    def test_joining_mid_game_waits_then_plays_next_game(self):
+        game, _ = self.make('ABC')
+        self.assertFalse(game.add_player('D', 'D'))
+        self.assertTrue(game.add_spectator('D', 'D'))
+        self.assertNotIn('D', game.players)
+        self.assertTrue(game.get_state_for_player('D')['is_spectator'])
+        game.remove_player('B')
+        game.remove_player('C')  # còn 1 người: ván kết thúc
+        self.assertEqual(game.state, GameState.GAME_END)
+        game.reset_to_lobby()
+        self.assertEqual(game.state, GameState.WAITING)
+        self.assertEqual(list(game.players), ['A', 'D'])
+        self.assertEqual(game.spectators, {})
+        self.assertTrue(game.start_game())
+        self.assertEqual(len(game.players['D'].hand), HAND_SIZE)
+
+    def test_lobby_keeps_settings_and_host(self):
+        game, _ = self.make('AB', time_limit=10, max_rounds=5)
+        game.remove_player('B')
+        game.reset_to_lobby()
+        self.assertEqual((game.time_limit, game.max_rounds), (10, 5))
+        self.assertEqual(game.host_id, 'A')
+        self.assertIsNone(game.current_card)
+        self.assertEqual(game.players['A'].hand, [])
+
+    def test_room_capacity_counts_waiting_people(self):
+        game = Game('t', max_players=3, seed=SEED)
+        game.add_player('A', 'A')
+        game.add_player('B', 'B')
+        game.start_game()
+        self.assertTrue(game.add_spectator('C', 'C'))
+        self.assertFalse(game.add_spectator('D', 'D'))
+        self.assertTrue(game.remove_player('C'))
+        self.assertEqual(game.spectators, {})

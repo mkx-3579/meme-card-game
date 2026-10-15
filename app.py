@@ -30,6 +30,7 @@ player_to_game = {}  # Ánh xạ player_id -> game_id
 game_lock = threading.RLock()
 
 MAX_NAME_LENGTH = 20
+LOBBY_DELAY = 8  # Hết ván bao nhiêu giây thì cả phòng quay về phòng chờ
 
 # Âm thanh giao diện; thiếu file thì client tự phát tiếng bíp tổng hợp
 UI_SOUNDS = ('card-play', 'vote', 'accept', 'reject', 'tick', 'win', 'your-turn',
@@ -115,28 +116,30 @@ def handle_join_game(data):
 
         game = games[game_id]
 
-        if game.state != GameState.WAITING:
-            emit('error', {'message': 'Game đã bắt đầu, không thể tham gia'})
-            return
-
-        if len(game.players) >= game.max_players:
+        if game.headcount() >= game.max_players:
             emit('error', {'message': 'Game đã đầy'})
             return
 
         remove_player_from_game(player_id)
-        game.add_player(player_id, player_name)
+        # Phòng đang chơi thì ngồi chờ, hết ván sẽ được vào chơi
+        spectating = game.state != GameState.WAITING
+        if spectating:
+            game.add_spectator(player_id, player_name)
+        else:
+            game.add_player(player_id, player_name)
 
         player_to_game[player_id] = game_id
         join_room(game_id)
 
+        message = (f'{player_name} đã vào phòng, sẽ chơi từ ván sau' if spectating
+                   else f'{player_name} đã tham gia game')
         emit('game_joined', {
             'game_id': game_id,
             'player_id': player_id,
-            'message': f'{player_name} đã tham gia game'
+            'spectating': spectating,
+            'message': message
         })
-        emit_to_room(game_id, 'notification', {
-            'message': f'{player_name} đã tham gia game'
-        })
+        emit_to_room(game_id, 'notification', {'message': message})
 
         emit_game_state_to_room(game_id)
 
@@ -161,6 +164,21 @@ def handle_start_game():
             })
         else:
             emit('error', {'message': 'Không thể bắt đầu game. Cần ít nhất 2 người chơi'})
+
+@socketio.on('update_settings')
+def handle_update_settings(data):
+    """Chủ phòng chỉnh thời gian / số vòng cho ván tiếp theo"""
+    player_id = request.sid
+    data = data or {}
+    with game_lock:
+        game = get_player_game(player_id)
+        if game is None:
+            return
+
+        if not game.update_settings(player_id, to_int(data.get('time_limit')),
+                                    to_int(data.get('max_rounds'))):
+            emit('error', {'message': 'Chỉ chủ phòng mới chỉnh được cài đặt, và chỉ khi đang ở phòng chờ'})
+        emit_game_state_to_room(game.game_id)
 
 @socketio.on('set_topic')
 def handle_set_topic(data):
@@ -232,11 +250,30 @@ def handle_get_game_state():
         # Gửi game state với hand info cho player này
         emit('game_state', game.get_state_for_player(player_id))
 
+@socketio.on('back_to_lobby')
+def handle_back_to_lobby():
+    """Chủ phòng cho cả phòng về phòng chờ ngay, không đợi hết giờ"""
+    player_id = request.sid
+    with game_lock:
+        game = get_player_game(player_id)
+        if game is None or game.host_id != player_id or game.state != GameState.GAME_END:
+            return
+        game.reset_to_lobby()
+        emit_game_state_to_room(game.game_id)
+
 # ==================== Utility Functions ====================
 
 def normalize_game_id(raw):
     """Mã game do server tạo là chữ thường; người chơi có thể gõ HOA hoặc thừa khoảng trắng"""
     return str(raw or '').strip().lower()
+
+def to_int(value):
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return -1  # Giá trị lạ: để engine từ chối
 
 def clean_name(data, player_id):
     name = str((data or {}).get('name') or '').strip()[:MAX_NAME_LENGTH]
@@ -260,16 +297,63 @@ def finish_voting_if_complete(game):
     emit_to_room(game.game_id, 'notification', {
         'message': f"Kết quả bỏ phiếu: {validity_text} ({vote_result['valid_votes']}/{vote_result['total_votes']})"
     })
-    if result['success']:
-        emit_to_room(game.game_id, 'notification', {
-            'message': f"🎉 {result['message']}",
-            'type': 'winner'
-        })
+    if game.state == GameState.GAME_END:
+        announce_winner(game)
     elif game.state == GameState.TOPIC:
         opener = game.get_current_player()
         emit_to_room(game.game_id, 'notification', {
             'message': f'Vòng {game.current_round}! {opener.name}, hãy ra chủ đề mới'
         })
+
+def announce_winner(game):
+    winner = game.players.get(game.winner_id)
+    if winner is None:
+        return
+    reasons = {
+        'last_card': f'{winner.name} đã thắng với lá bài cuối!',
+        'players_left': f'{winner.name} thắng vì những người khác đã rời game!',
+        'time': f'⏰ Hết giờ! {winner.name} thắng vì còn ít bài nhất ({len(winner.hand)} lá)',
+        'rounds': f'Hết {game.max_rounds} vòng! {winner.name} thắng vì còn ít bài nhất ({len(winner.hand)} lá)',
+    }
+    emit_to_room(game.game_id, 'notification', {
+        'message': f"🎉 {reasons.get(game.end_reason, winner.name + ' thắng!')}",
+        'type': 'winner'
+    })
+
+def ensure_match_timer(game):
+    """Ván có giới hạn thời gian thì hẹn giờ đúng một lần mỗi ván"""
+    if game.is_running and game.match_deadline is not None \
+            and game.timed_match_id != game.game_number:
+        game.timed_match_id = game.game_number
+        socketio.start_background_task(match_timer, game.game_id, game.game_number,
+                                       game.match_time_left())
+
+def match_timer(game_id, game_number, seconds):
+    socketio.sleep(seconds)
+    with game_lock:
+        game = games.get(game_id)
+        if game is None or not game.expire_match(game_number):
+            return
+        announce_winner(game)
+        emit_game_state_to_room(game_id)
+
+def ensure_lobby_timer(game):
+    """Hết ván thì hẹn giờ đưa cả phòng về phòng chờ, phòng không bị đóng"""
+    if game.state == GameState.GAME_END and game.timed_lobby_id != game.game_number:
+        game.timed_lobby_id = game.game_number
+        socketio.start_background_task(lobby_timer, game.game_id, game.game_number)
+
+def lobby_timer(game_id, game_number):
+    socketio.sleep(LOBBY_DELAY)
+    with game_lock:
+        game = games.get(game_id)
+        if game is None or game.state != GameState.GAME_END or game.game_number != game_number:
+            return
+        game.reset_to_lobby()
+        emit_to_room(game_id, 'notification', {
+            'message': 'Cả phòng đã về phòng chờ. Chủ phòng có thể chỉnh cài đặt rồi bắt đầu ván mới'
+        })
+        emit_game_state_to_room(game_id)
 
 def announce_topic(game, timed_out=False):
     player = game.get_current_player()
@@ -327,9 +411,12 @@ def remove_player_from_game(player_id):
     game.remove_player(player_id)
 
     if not game.players:
-        # Phòng trống thì xóa luôn
-        del games[game_id]
-        return
+        if not game.spectators:
+            # Phòng trống thì xóa luôn
+            del games[game_id]
+            return
+        # Chỉ còn người đang chờ: cho họ vào phòng chờ để chơi ván mới
+        game.reset_to_lobby()
 
     if player:
         emit_to_room(game_id, 'notification', {
@@ -337,12 +424,7 @@ def remove_player_from_game(player_id):
         })
 
     if was_running and game.state == GameState.GAME_END:
-        winner = game.players.get(game.winner_id)
-        if winner:
-            emit_to_room(game_id, 'notification', {
-                'message': f'🎉 {winner.name} thắng vì những người khác đã rời game!',
-                'type': 'winner'
-            })
+        announce_winner(game)
     else:
         finish_voting_if_complete(game)
 
@@ -353,9 +435,11 @@ def emit_game_state_to_room(game_id):
     if game_id in games:
         game = games[game_id]
         ensure_topic_timer(game)
+        ensure_match_timer(game)
+        ensure_lobby_timer(game)
 
-        # Gửi player-specific state cho mỗi player
-        for player_id in game.players.keys():
+        # Gửi player-specific state cho mỗi người, kể cả người đang chờ ván sau
+        for player_id in list(game.players) + list(game.spectators):
             socketio.emit('game_state',
                          game.get_state_for_player(player_id),
                          room=player_id)
