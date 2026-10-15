@@ -42,3 +42,7 @@ instance/
 # Environment
 .env
 .env.local
+
+# Ảnh lá bài do người chơi tự thêm
+static/memes/cards/*
+!static/memes/cards/README.md

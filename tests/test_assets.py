@@ -44,6 +44,35 @@ class TestCards(unittest.TestCase):
         self.assertEqual(a, b)
 
 
+class TestImageCards(unittest.TestCase):
+    def test_images_in_cards_folder_replace_text_cards(self):
+        import tempfile
+        import card_deck
+        with tempfile.TemporaryDirectory() as tmp:
+            for name in ('b.gif', 'a.jpg', 'notes.txt'):
+                open(os.path.join(tmp, name), 'w').close()
+            old = card_deck.CARD_IMAGE_DIR
+            card_deck.CARD_IMAGE_DIR = tmp
+            try:
+                cards = card_deck.build_cards()
+            finally:
+                card_deck.CARD_IMAGE_DIR = old
+        self.assertEqual([c['image'] for c in cards],
+                         ['/static/memes/cards/a.jpg', '/static/memes/cards/b.gif'])
+        self.assertTrue(all(c['caption'] == '' for c in cards))
+
+    def test_empty_folder_keeps_text_cards(self):
+        import tempfile
+        import card_deck
+        with tempfile.TemporaryDirectory() as tmp:
+            old = card_deck.CARD_IMAGE_DIR
+            card_deck.CARD_IMAGE_DIR = tmp
+            try:
+                self.assertEqual(len(card_deck.build_cards()), len(MEME_CARDS))
+            finally:
+                card_deck.CARD_IMAGE_DIR = old
+
+
 class TestAssetsListed(unittest.TestCase):
     def setUp(self):
         with open(os.path.join(ROOT, 'ASSETS.md'), encoding='utf-8') as f:

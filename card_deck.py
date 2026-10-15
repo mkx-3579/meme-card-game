@@ -13,6 +13,8 @@ import random
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGE_DIR = os.path.join(BASE_DIR, 'static', 'memes', 'img')
 SOUND_DIR = os.path.join(BASE_DIR, 'static', 'sounds')
+# Ảnh meme dùng nguyên tấm làm lá bài (không in chữ). Có ảnh ở đây thì chỉ chơi bằng các ảnh này.
+CARD_IMAGE_DIR = os.path.join(BASE_DIR, 'static', 'memes', 'cards')
 IMAGE_EXTS = ('.jpg', '.jpeg', '.png', '.webp', '.gif')
 SOUND_EXTS = ('.mp3', '.ogg', '.wav')
 
@@ -164,8 +166,28 @@ def find_asset(directory, basename, exts):
     return None
 
 
+def build_image_cards():
+    """Mỗi ảnh trong static/memes/cards/ thành một lá bài chỉ có ảnh"""
+    if not os.path.isdir(CARD_IMAGE_DIR):
+        return []
+    names = sorted(n for n in os.listdir(CARD_IMAGE_DIR) if n.lower().endswith(IMAGE_EXTS))
+    return [{
+        'id': index,
+        'template': 'image',
+        'name': '',
+        'emoji': '🖼️',
+        'caption': '',
+        'image': f'/static/memes/cards/{name}',
+        'sound': None,
+    } for index, name in enumerate(names)]
+
+
 def build_cards():
-    """Tạo danh sách lá bài kèm đường dẫn ảnh/âm thanh đang có trên máy"""
+    """Tạo danh sách lá bài. Có ảnh trong static/memes/cards/ thì chỉ dùng ảnh,
+    không thì dùng bộ lá mẫu meme + chú thích."""
+    image_cards = build_image_cards()
+    if image_cards:
+        return image_cards
     cards = []
     for index, (template, caption) in enumerate(MEME_CARDS):
         info = MEME_TEMPLATES[template]

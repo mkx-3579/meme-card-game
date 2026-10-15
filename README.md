@@ -35,6 +35,8 @@ Sau đó truy cập: `http://localhost:5000`
 
 ## Ảnh và âm thanh meme
 
+- **Lá bài bằng ảnh (khuyên dùng):** thả ảnh meme bất kỳ (jpg, png, gif…) vào `static/memes/cards/`. Có ảnh ở đó thì mỗi ảnh là một lá bài, hiện nguyên tấm, không in chữ. Thư mục này không lên GitHub nên cập nhật game không mất ảnh.
+
 - Ảnh: thả ảnh mẫu meme (ảnh trống) vào `static/memes/img/`, đặt tên theo mẫu, ví dụ `drake.jpg`.
 - Âm thanh: `static/sounds/` (âm giao diện như `accept.mp3`, âm riêng từng meme như `meme-stonks.mp3`).
 - Danh sách đầy đủ tên file và chỗ ghi nguồn nằm trong [ASSETS.md](ASSETS.md). Thêm file nào thì điền một dòng ở đó.

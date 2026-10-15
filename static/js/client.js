@@ -326,7 +326,9 @@ function renderMemeCard(card, size) {
 
     const el = document.createElement('div');
     el.className = `meme-card ${size}`;
-    el.title = card.caption;
+    if (card.caption) el.title = card.caption;
+    // Lá chỉ có ảnh: hiện nguyên tấm, không in chữ
+    if (!card.caption && card.image) el.classList.add('image-only');
 
     const art = document.createElement('div');
     art.className = 'meme-art';
@@ -343,6 +345,7 @@ function renderMemeCard(card, size) {
     el.appendChild(art);
 
     const parts = String(card.caption || '').split(' | ').map(p => p.trim()).filter(Boolean);
+    if (parts.length === 0) return el;
 
     if (size === 'big' && parts.length <= 2) {
         const top = document.createElement('div');
