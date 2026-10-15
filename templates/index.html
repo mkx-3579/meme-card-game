@@ -3,117 +3,172 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meme Card Game 🎮</title>
+    <title>Meme Card Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="/static/js/vendor/socket.io.min.js"></script>
 </head>
 <body>
+    <!-- Bộ icon nét (dùng lại bằng <use>) -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+        <defs>
+            <symbol id="i-sound" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></symbol>
+            <symbol id="i-mute" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z"/><path d="m22 9-6 6"/><path d="m16 9 6 6"/></symbol>
+            <symbol id="i-spark" viewBox="0 0 24 24"><path d="m12 3 1.9 5.8L20 10l-6.1 1.2L12 17l-1.9-5.8L4 10l6.1-1.2z"/></symbol>
+            <symbol id="i-megaphone" viewBox="0 0 24 24"><path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/></symbol>
+            <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+            <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+            <symbol id="i-dice" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 8h.01"/><path d="M16 8h.01"/><path d="M12 12h.01"/><path d="M8 16h.01"/><path d="M16 16h.01"/></symbol>
+            <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m18 15-6-6-6 6"/></symbol>
+            <symbol id="i-exit" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></symbol>
+            <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></symbol>
+            <symbol id="i-trophy" viewBox="0 0 24 24"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3v2a3 3 0 0 1-3 3"/><path d="M7 5H4v2a3 3 0 0 0 3 3"/></symbol>
+            <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+        </defs>
+    </svg>
+
     <div id="app">
-        <!-- Login Screen -->
-        <div id="loginScreen" class="screen active">
-            <div class="container">
-                <div class="login-box">
-                    <h1>🎮 Meme Card Game</h1>
-                    <p class="subtitle">Trò chơi bài meme online cực vui!</p>
-                    
-                    <div class="form-group">
-                        <input type="text" id="playerName" placeholder="Nhập tên của bạn" maxlength="20">
-                    </div>
-                    
-                    <div class="button-group">
-                        <button id="createGameBtn" class="btn btn-primary">➕ Tạo Game Mới</button>
-                        <button id="joinGameBtn" class="btn btn-secondary">🔗 Tham Gia Game</button>
-                    </div>
-                    
-                    <div id="joinGameForm" class="hidden">
-                        <div class="form-group">
-                            <input type="text" id="gameCodeInput" placeholder="Nhập mã game (ví dụ: abc123)">
-                        </div>
-                        <button id="confirmJoinBtn" class="btn btn-primary">Tham Gia</button>
-                    </div>
+        <!-- ==================== Trang chủ ==================== -->
+        <div id="loginScreen" class="screen paper active">
+            <header class="menu-top">
+                <div class="brand brand-pill">
+                    <span class="brand-mark" aria-hidden="true">M</span>
+                    <span class="brand-name">Meme Card</span>
                 </div>
-            </div>
+            </header>
+
+            <main class="menu-main">
+                <section class="menu-hero">
+                    <span class="tag-chip">2 đến 8 người · chơi online với bạn bè</span>
+                    <h1 class="menu-title">Đánh meme,<br><span class="hl">cả bàn</span> cười.</h1>
+                    <p class="menu-desc">Mỗi vòng một người ra đề, mọi người lần lượt đánh ảnh meme hợp nhất, cả bàn bỏ phiếu. Ai hết bài trước thì thắng.</p>
+                    <div class="menu-fan" aria-hidden="true">
+                        <div class="fan-card fan-1"><div class="fan-art"><span>HAHA</span></div></div>
+                        <div class="fan-card fan-2"><div class="fan-art"><span>?!</span></div></div>
+                        <div class="fan-card fan-3"><div class="fan-art"><span>GG</span></div></div>
+                        <span class="fan-sticker">Cười xỉu!</span>
+                    </div>
+                </section>
+
+                <section class="menu-form" aria-labelledby="menuFormTitle">
+                    <h2 id="menuFormTitle">Vào bàn chơi</h2>
+                    <div class="field">
+                        <label for="playerName">Tên của bạn</label>
+                        <input type="text" id="playerName" placeholder="Ví dụ: mk" maxlength="20" autocomplete="nickname">
+                    </div>
+                    <button id="createGameBtn" class="btn btn-yellow btn-lg" type="button">Tạo phòng mới</button>
+                    <div class="divider"><span>hoặc nhập mã của bạn bè</span></div>
+                    <div id="joinGameForm" class="field">
+                        <label for="gameCodeInput">Mã phòng</label>
+                        <div class="code-row">
+                            <input type="text" id="gameCodeInput" class="code-input" placeholder="A1B2C3" autocomplete="off" autocapitalize="characters" spellcheck="false">
+                            <button id="confirmJoinBtn" class="btn btn-blue" type="button">Vào</button>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <footer class="menu-rules">
+                <div class="rule-chip"><span class="rule-num c-yellow">1</span>Người mở vòng ra đề</div>
+                <div class="rule-chip"><span class="rule-num c-pink">2</span>Lần lượt đánh ảnh hợp đề</div>
+                <div class="rule-chip"><span class="rule-num c-blue">3</span>Cả bàn bỏ phiếu, bị từ chối rút 2 lá</div>
+            </footer>
         </div>
 
-        <!-- Waiting Room -->
-        <div id="waitingScreen" class="screen">
-            <div class="container">
+        <!-- ==================== Phòng chờ ==================== -->
+        <div id="waitingScreen" class="screen paper">
+            <header class="menu-top">
+                <div class="brand brand-pill">
+                    <span class="brand-mark" aria-hidden="true">M</span>
+                    <span class="brand-name">Meme Card</span>
+                </div>
+            </header>
+            <main class="waiting-main">
                 <div class="room-box">
-                    <h1>⏳ Phòng Chờ</h1>
-                    
+                    <span class="box-tab">Phòng chờ</span>
                     <div class="game-code-display">
-                        <p>Mã game:</p>
+                        <span class="code-label">Mã phòng</span>
                         <h2 id="gameCodeDisplay">---</h2>
-                        <p class="text-small">Chia sẻ mã này với bạn bè để họ tham gia</p>
+                        <p class="code-hint">Gửi mã này cho bạn bè để vào cùng bàn</p>
                     </div>
-                    
+
                     <div class="players-list">
-                        <h3>👥 Người chơi ({playerCount}/{maxPlayers})</h3>
+                        <h3 id="waitingCount">Người chơi (0/8)</h3>
                         <div id="playersList"></div>
                     </div>
-                    
+
                     <div class="action-buttons">
-                        <button id="startGameBtn" class="btn btn-success" disabled>▶️ Bắt Đầu Game (Cần ≥2 người)</button>
-                        <button id="leaveGameBtn" class="btn btn-danger">❌ Rời Game</button>
+                        <button id="startGameBtn" class="btn btn-green btn-lg" type="button" disabled>Bắt đầu (cần ít nhất 2 người)</button>
+                        <button id="leaveGameBtn" class="btn btn-white" type="button">Rời phòng</button>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
 
-        <!-- Game Screen -->
-        <div id="gameScreen" class="screen">
-            <div class="game-container">
-                <!-- Header -->
-                <div class="game-header">
-                    <h1>🎮 Meme Card Game</h1>
-                    <div class="game-info">
-                        <span>Round: <strong id="roundNum">1</strong></span>
-                        <span>|</span>
-                        <span id="gameStatus">Đang chờ...</span>
-                    </div>
-                    <div class="settings-bar">
-                        <button id="muteBtn" class="icon-btn" title="Bật/tắt âm thanh">🔊</button>
-                        <input id="volumeSlider" type="range" min="0" max="100" value="70" title="Âm lượng">
-                        <button id="fxBtn" class="icon-btn" title="Bật/tắt hiệu ứng">✨</button>
-                    </div>
+        <!-- ==================== Màn chơi ==================== -->
+        <div id="gameScreen" class="screen paper">
+            <header class="game-header">
+                <div class="brand">
+                    <span class="brand-mark sm" aria-hidden="true">M</span>
+                    <span class="brand-name">Meme Card</span>
                 </div>
+                <div class="game-info">
+                    <span class="chip c-yellow">Vòng <strong id="roundNum">1</strong></span>
+                    <span id="gameStatus" class="chip c-lightpink">Đang chờ...</span>
+                    <span id="roomChip" class="chip chip-dashed"></span>
+                </div>
+                <div class="settings-bar">
+                    <button id="muteBtn" class="icon-btn" type="button" aria-label="Tắt âm thanh" title="Bật/tắt âm thanh">
+                        <svg class="ico" aria-hidden="true"><use href="#i-sound"/></svg>
+                    </button>
+                    <input id="volumeSlider" type="range" min="0" max="100" value="70" aria-label="Âm lượng" title="Âm lượng">
+                    <button id="fxBtn" class="icon-btn" type="button" aria-label="Bật/tắt hiệu ứng" title="Bật/tắt hiệu ứng">
+                        <svg class="ico" aria-hidden="true"><use href="#i-spark"/></svg>
+                    </button>
+                    <button id="leaveGameBtnFooter" class="btn btn-red btn-sm leave-btn" type="button" aria-label="Rời phòng"><svg class="ico" aria-hidden="true"><use href="#i-exit"/></svg><span class="leave-text">Rời phòng</span></button>
+                </div>
+            </header>
 
-                <!-- Main Game Area -->
-                <div class="game-main">
-                    <!-- Players Status -->
-                    <div class="players-panel">
-                        <h3>👥 Người Chơi</h3>
-                        <div id="playersStatus" class="players-list"></div>
+            <div class="game-main">
+                <!-- Người chơi -->
+                <aside class="players-panel">
+                    <h2 class="panel-title">Người chơi</h2>
+                    <div id="playersStatus" class="players-list"></div>
+                </aside>
+
+                <!-- Bàn chơi -->
+                <main class="game-board">
+                    <div id="topicBanner" class="topic-banner hidden">
+                        <div class="topic-icon" aria-hidden="true"><svg class="ico"><use href="#i-megaphone"/></svg></div>
+                        <div class="topic-body">
+                            <span class="topic-meta"><span id="topicRound" class="topic-round"></span> · <span id="topicBy" class="topic-by"></span></span>
+                            <p id="topicText" class="topic-text"></p>
+                        </div>
                     </div>
 
-                    <!-- Game Board -->
-                    <div class="game-board">
-                        <!-- Chủ đề của vòng -->
-                        <div id="topicBanner" class="topic-banner hidden">
-                            <span id="topicRound" class="topic-round"></span>
-                            <p id="topicText" class="topic-text"></p>
-                            <span id="topicBy" class="topic-by"></span>
-                        </div>
-
-                        <!-- Bước ra đề đầu vòng -->
-                        <div id="topicPanel" class="topic-panel hidden">
-                            <h3 id="topicPanelTitle"></h3>
-                            <div id="topicForm" class="topic-form">
-                                <p class="topic-help">Gõ một tình huống để mọi người tìm ảnh meme hợp nhất. Ví dụ: "Khi sếp nhắn lúc 11h đêm"</p>
-                                <div class="topic-row">
-                                    <input id="topicInput" type="text" maxlength="100" placeholder="Chủ đề của vòng này..." autocomplete="off">
-                                    <button id="topicDiceBtn" class="btn btn-secondary" title="Gợi ý đề ngẫu nhiên">🎲</button>
-                                    <button id="topicSubmitBtn" class="btn btn-primary">Ra đề</button>
-                                </div>
+                    <div id="topicPanel" class="topic-panel hidden">
+                        <h3 id="topicPanelTitle"></h3>
+                        <div id="topicForm" class="topic-form">
+                            <p class="topic-help">Gõ một tình huống để mọi người tìm ảnh meme hợp nhất. Ví dụ: "Khi sếp nhắn lúc 11h đêm"</p>
+                            <div class="topic-row">
+                                <label for="topicInput" class="sr-only">Chủ đề của vòng</label>
+                                <input id="topicInput" type="text" maxlength="100" placeholder="Chủ đề của vòng này..." autocomplete="off">
+                                <button id="topicDiceBtn" class="btn btn-white btn-icon" type="button" aria-label="Gợi ý đề ngẫu nhiên" title="Gợi ý đề ngẫu nhiên">
+                                    <svg class="ico" aria-hidden="true"><use href="#i-dice"/></svg>
+                                </button>
+                                <button id="topicSubmitBtn" class="btn btn-yellow" type="button">Ra đề</button>
                             </div>
-                            <p id="topicWaiting" class="topic-help">Chờ một chút, chủ đề sắp tới. Hết giờ mà chưa có đề thì game tự chọn một đề ngẫu nhiên.</p>
-                            <div class="timer"><div class="timer-fill"></div><span class="timer-text"></span></div>
                         </div>
+                        <p id="topicWaiting" class="topic-help">Chờ một chút, chủ đề sắp tới. Hết giờ mà chưa có đề thì game tự chọn một đề ngẫu nhiên.</p>
+                        <div class="timer"><div class="timer-fill"></div><span class="timer-text"></span></div>
+                    </div>
 
-                        <!-- Current Card Display -->
+                    <section class="play-table" aria-label="Bàn chơi">
                         <div id="cardDisplayArea" class="card-display-area hidden">
                             <div class="card-being-played">
-                                <h3>Lá bài đang xét:</h3>
+                                <h3>Lá đang xét</h3>
                                 <div class="stage">
                                     <div id="currentCardContent"></div>
                                     <div id="resultStamp" class="stamp hidden"></div>
@@ -122,80 +177,107 @@
                                 <div id="votingInfo"></div>
                             </div>
                         </div>
+                        <div class="table-empty">
+                            <p>Bàn đang trống. Lá đầu tiên của vòng sẽ nằm ở đây.</p>
+                        </div>
+                        <div class="deck" aria-hidden="true">
+                            <div class="deck-stack">
+                                <div class="deck-card d1"></div>
+                                <div class="deck-card d2"></div>
+                                <div class="deck-card d3">M</div>
+                            </div>
+                            <span class="pill">Chồng bài</span>
+                        </div>
+                    </section>
 
-                        <!-- My Hand -->
-                        <div id="myHand" class="my-hand">
-                            <h3>🎴 Tay bài của bạn:</h3>
-                            <div id="myHandCards" class="cards-container"></div>
+                    <section id="myHand" class="my-hand" aria-label="Tay bài của bạn">
+                        <div class="hand-head">
+                            <h2 class="panel-title">Tay bài của bạn</h2>
                             <p id="handStatus" class="status-text"></p>
                         </div>
-                    </div>
+                        <div id="myHandCards" class="cards-container"></div>
+                    </section>
+                </main>
 
-                    <!-- Voting Panel -->
+                <!-- Bình chọn + luật -->
+                <aside class="side-panel">
                     <div id="votingPanel" class="voting-panel hidden">
-                        <h3>🗳️ Bình Chọn</h3>
+                        <h2 class="panel-title">Bình chọn</h2>
                         <p id="votingPrompt">Lá bài này có hợp lệ không?</p>
                         <div class="timer"><div class="timer-fill"></div><span class="timer-text"></span></div>
                         <div class="voting-buttons">
-                            <button id="validBtn" class="btn btn-success">✅ Hợp Lệ</button>
-                            <button id="invalidBtn" class="btn btn-danger">❌ Không Hợp Lệ</button>
+                            <button id="validBtn" class="btn btn-green" type="button"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Hợp đề</button>
+                            <button id="invalidBtn" class="btn btn-red" type="button"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg>Không hợp</button>
                         </div>
                         <div id="votesDisplay" class="votes-display"></div>
                         <ul id="voterList" class="voter-list"></ul>
                     </div>
-                </div>
+                    <div class="vote-idle">
+                        <h2 class="panel-title">Bình chọn</h2>
+                        <p>Chưa có lá nào đang chờ. Khi có người đánh, bảng bỏ phiếu hiện giữa màn hình.</p>
+                    </div>
+                    <div class="rules-card">
+                        <h2 class="panel-title">Luật nhanh</h2>
+                        <ul>
+                            <li>Lá thường cần 3/4 phiếu đồng ý.</li>
+                            <li>Lá cuối chỉ cần 1/2 là thắng.</li>
+                            <li>Bị từ chối: rút 2 lá.</li>
+                        </ul>
+                    </div>
+                </aside>
+            </div>
 
-                <!-- Notifications -->
-                <div id="notificationBox" class="notification-box">
-                    <button id="logToggle" class="log-header" type="button" aria-expanded="true" title="Ẩn/hiện diễn biến">
-                        <span class="log-title">📜 Diễn biến</span>
-                        <span id="logLatest" class="log-latest"></span>
-                        <span id="logUnread" class="log-unread hidden"></span>
-                        <span class="log-arrow">▾</span>
-                    </button>
-                    <div id="notifications" class="log-list"></div>
-                </div>
-
-                <!-- Leave Button -->
-                <div class="game-footer">
-                    <button id="leaveGameBtnFooter" class="btn btn-danger">❌ Rời Game</button>
-                </div>
+            <!-- Diễn biến -->
+            <div id="notificationBox" class="notification-box">
+                <button id="logToggle" class="log-header" type="button" aria-expanded="true" title="Ẩn/hiện diễn biến">
+                    <span class="log-title">Diễn biến</span>
+                    <span id="logLatest" class="log-latest"></span>
+                    <span id="logUnread" class="log-unread hidden"></span>
+                    <svg class="ico log-arrow" aria-hidden="true"><use href="#i-chevron"/></svg>
+                </button>
+                <div id="notifications" class="log-list"></div>
             </div>
         </div>
 
-        <!-- Bảng bỏ phiếu lớn cho người cần vote -->
+        <!-- ==================== Bảng bỏ phiếu lớn ==================== -->
         <div id="voteOverlay" class="vote-overlay hidden">
-            <div class="vote-box">
-                <h2>🗳️ Đến lượt bạn bỏ phiếu!</h2>
-                <p id="overlayTopic" class="overlay-topic"></p>
-                <p id="overlayPlayedBy" class="overlay-by"></p>
+            <div class="vote-box" role="dialog" aria-modal="true" aria-labelledby="voteTitle">
+                <h2 id="voteTitle" class="dialog-tab c-pink">Đến lượt bạn chấm!</h2>
+                <div id="overlayTopicBox" class="overlay-topic-box">
+                    <span class="overlay-topic-label">Chủ đề</span>
+                    <p id="overlayTopic" class="overlay-topic"></p>
+                </div>
                 <div id="overlayCard"></div>
+                <p id="overlayPlayedBy" class="overlay-by"></p>
                 <p id="overlayHint" class="overlay-hint"></p>
                 <div class="timer big"><div class="timer-fill"></div><span class="timer-text"></span></div>
                 <div class="overlay-buttons">
-                    <button id="overlayValidBtn" class="btn btn-success btn-huge">✅ Hợp lệ</button>
-                    <button id="overlayInvalidBtn" class="btn btn-danger btn-huge">❌ Không hợp lệ</button>
+                    <button id="overlayValidBtn" class="btn btn-green btn-huge" type="button"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg>Hợp đề</button>
+                    <button id="overlayInvalidBtn" class="btn btn-red btn-huge" type="button"><svg class="ico" aria-hidden="true"><use href="#i-x"/></svg>Không hợp</button>
                 </div>
+                <ul id="overlayVoters" class="voter-list chips"></ul>
             </div>
         </div>
 
         <canvas id="confetti" class="confetti hidden"></canvas>
 
-        <!-- Error Modal -->
+        <!-- Lỗi -->
         <div id="errorModal" class="modal hidden">
-            <div class="modal-content error-modal">
-                <h2>⚠️ Lỗi</h2>
+            <div class="modal-content error-modal" role="alertdialog" aria-modal="true" aria-labelledby="errorTitle">
+                <h2 id="errorTitle" class="dialog-tab c-red">Có lỗi</h2>
+                <div class="modal-icon c-red" aria-hidden="true"><svg class="ico"><use href="#i-alert"/></svg></div>
                 <p id="errorMessage"></p>
-                <button class="btn btn-primary" onclick="closeErrorModal()">Đóng</button>
+                <button class="btn btn-yellow" type="button" onclick="closeErrorModal()">Đóng</button>
             </div>
         </div>
 
-        <!-- Winner Modal -->
+        <!-- Có người thắng -->
         <div id="winnerModal" class="modal hidden">
-            <div class="modal-content winner-modal">
-                <h2>🎉 Có Người Thắng!</h2>
+            <div class="modal-content winner-modal" role="dialog" aria-modal="true" aria-labelledby="winnerTitle">
+                <h2 id="winnerTitle" class="dialog-tab c-green">Có người thắng!</h2>
+                <div class="modal-icon c-yellow" aria-hidden="true"><svg class="ico"><use href="#i-trophy"/></svg></div>
                 <p id="winnerMessage"></p>
-                <button class="btn btn-primary" onclick="leaveGame()">Về Trang Chủ</button>
+                <button class="btn btn-yellow btn-lg" type="button" onclick="leaveGame()">Về trang chủ</button>
             </div>
         </div>
     </div>
