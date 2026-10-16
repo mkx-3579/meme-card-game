@@ -1063,6 +1063,12 @@ select:focus {
     overflow-wrap: anywhere;
 }
 
+/* Đề dài (câu kể cả đoạn) thì chữ nhỏ lại cho banner không quá cao */
+.topic-text.topic-long {
+    font-size: clamp(18px, 1.8vw, 24px);
+    line-height: 1.25;
+}
+
 .topic-banner.topic-in {
     animation: pop-in 0.45s ease-out;
 }

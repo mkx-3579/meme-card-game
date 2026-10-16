@@ -1140,7 +1140,9 @@ function updateTopic(state) {
     if (showBanner) {
         document.getElementById('topicRound').textContent = `Chủ đề vòng ${state.round}`;
         // textContent: chữ người chơi gõ không bao giờ được hiểu là HTML
-        document.getElementById('topicText').textContent = state.topic;
+        const topicText = document.getElementById('topicText');
+        topicText.textContent = state.topic;
+        topicText.classList.toggle('topic-long', state.topic.length > 70);
         document.getElementById('topicBy').textContent = `${playerName(state, state.round_opener_id)} ra đề`;
     }
 
@@ -1156,7 +1158,7 @@ function updateTopic(state) {
     document.getElementById('topicForm').classList.toggle('hidden', !isSetter);
     document.getElementById('topicWaiting').classList.toggle('hidden', isSetter);
     const input = document.getElementById('topicInput');
-    input.maxLength = state.topic_max_length || 100;
+    input.maxLength = state.topic_max_length || 150;
     if (isSetter && panel.dataset.key !== String(state.topic_id)) {
         panel.dataset.key = String(state.topic_id);
         input.value = '';
