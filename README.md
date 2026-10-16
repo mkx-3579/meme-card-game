@@ -38,7 +38,7 @@ Chạy giống trên máy chủ (Linux/macOS): `gunicorn -w 1 --threads 100 wsgi
 
 ## Luật chơi
 
-1. Cần 2–8 người chơi. Người tạo phòng (👑) là người bấm bắt đầu; đã bắt đầu thì không vào thêm được
+1. Cần 2–10 người chơi. Người tạo phòng (👑) là người bấm bắt đầu; ai vào khi ván đang chạy sẽ ngồi xem và được chơi từ ván sau
 2. Mỗi người chơi nhận 5 lá bài meme
 3. **Ra đề:** đầu mỗi vòng, người mở vòng gõ một chủ đề (ví dụ "Khi sếp nhắn lúc 11h đêm") cho cả phòng đọc. Mỗi vòng xoay sang người kế tiếp mở. Có nút 🎲 gợi ý đề; sau **45 giây** chưa gõ thì game tự chọn một đề
 4. Bắt đầu từ người mở vòng, lần lượt mỗi người đánh 1 ảnh hợp với chủ đề

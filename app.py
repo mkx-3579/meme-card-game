@@ -3,7 +3,7 @@ Meme Card Game - Flask Backend với SocketIO
 """
 from flask import Flask, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
-from game_engine import Game, GameState, REJECT_DRAW, SETTING_CHOICES
+from game_engine import Game, GameState, REJECT_DRAW, SETTING_CHOICES, MAX_PLAYERS
 from topics import TOPIC_SUGGESTIONS
 from card_deck import SOUND_DIR, SOUND_EXTS, find_asset
 import os
@@ -34,7 +34,7 @@ LOBBY_DELAY = 8  # Hết ván bao nhiêu giây thì cả phòng quay về phòng
 
 # Âm thanh giao diện; thiếu file thì client tự phát tiếng bíp tổng hợp
 UI_SOUNDS = ('card-play', 'vote', 'accept', 'reject', 'tick', 'win', 'your-turn',
-             'your-topic', 'deal', 'drumroll', 'topic')
+             'your-topic', 'deal', 'draw', 'drumroll', 'topic')
 # Mỗi âm thanh có thể có thêm bản phụ <tên>-2, <tên>-3 để phát ngẫu nhiên cho đỡ nhàm
 SOUND_VARIANTS = ('', '-2', '-3')
 
@@ -82,7 +82,7 @@ def handle_create_game(data):
         while game_id in games:
             game_id = str(uuid.uuid4())[:8]
 
-        game = Game(game_id, max_players=8)
+        game = Game(game_id, max_players=MAX_PLAYERS)
         game.add_player(player_id, player_name)
 
         games[game_id] = game
@@ -217,6 +217,31 @@ def handle_play_card(data):
                                            game.vote_seconds)
         else:
             emit('error', {'message': 'Không thể đánh bài. Đảm bảo đó là lượt của bạn'})
+
+@socketio.on('skip_turn')
+def handle_skip_turn():
+    """Người đang tới lượt không muốn đánh: rút thêm 1 lá và chuyển lượt"""
+    player_id = request.sid
+    with game_lock:
+        game = get_player_game(player_id)
+        if game is None:
+            return
+
+        name = game.players[player_id].name if player_id in game.players else 'Ai đó'
+        if game.skip_turn(player_id) is None:
+            emit('error', {'message': 'Chỉ bỏ lượt được khi đang tới lượt bạn đánh'})
+            return
+        emit_to_room(game.game_id, 'notification', {
+            'message': f'{name} bỏ lượt và rút thêm 1 lá'
+        })
+        if game.state == GameState.GAME_END:
+            announce_winner(game)
+        elif game.state == GameState.TOPIC:
+            opener = game.get_current_player()
+            emit_to_room(game.game_id, 'notification', {
+                'message': f'Vòng {game.current_round}! {opener.name}, hãy ra chủ đề mới'
+            })
+        emit_game_state_to_room(game.game_id)
 
 @socketio.on('vote')
 def handle_vote(data):

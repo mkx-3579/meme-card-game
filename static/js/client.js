@@ -141,23 +141,36 @@ class GameAudio {
         // Dạng 'noise' = tiếng xào xạc (lọc quanh tần số), dùng cho tiếng quẹt bài, tiếng trống
         const drumroll = Array.from({ length: 36 }, (_, i) =>
             [180 + (i % 2) * 40, i * 0.045, 0.05, 'noise', null, 0.25 + i / 48]);
+        // Bộ âm thanh kiểu "game show": mỗi tiếng một màu riêng để nghe là biết chuyện gì
         const patterns = {
-            // Lá bài vút ra rồi đập xuống bàn
-            'card-play': [[2500, 0, 0.16, 'noise', 600, 0.6], [110, 0.14, 0.12, 'sine', 50, 1.2], [1800, 0.14, 0.05, 'noise', null, 0.5]],
-            // Tiếng xào bài: nhiều tiếng quẹt ngắn liên tiếp
-            'deal': Array.from({ length: 6 }, (_, i) => [3000 - i * 150, i * 0.07, 0.06, 'noise', 1200, 0.5]),
-            'vote': [[660, 0, 0.07, 'sine']],
-            'accept': [[523, 0, 0.1, 'triangle'], [659, 0.1, 0.1, 'triangle'], [784, 0.2, 0.18, 'triangle'], [1047, 0.3, 0.3, 'triangle']],
-            // Kèn buồn "wah wah wah waaah"
-            'reject': [[392, 0, 0.3, 'sawtooth', 370, 0.7], [370, 0.32, 0.3, 'sawtooth', 349, 0.7], [349, 0.64, 0.3, 'sawtooth', 330, 0.7], [330, 0.96, 0.7, 'sawtooth', 300, 0.7]],
-            'tick': [[1000, 0, 0.03, 'square']],
+            // Lá bài vút ra rồi đập "bộp" xuống bàn
+            'card-play': [[3200, 0, 0.18, 'noise', 500, 0.7], [140, 0.15, 0.14, 'sine', 45, 1.4], [2200, 0.15, 0.05, 'noise', null, 0.6]],
+            // Xào bài: tiếng quẹt ngắn dồn dập, kết bằng tiếng gõ bài xuống bàn
+            'deal': Array.from({ length: 8 }, (_, i) => [3400 - i * 180, i * 0.055, 0.05, 'noise', 1400, 0.55])
+                .concat([[160, 8 * 0.055, 0.12, 'sine', 70, 1.1]]),
+            // Rút một lá: tiếng trượt lá + "tách" nhẹ
+            'draw': [[1600, 0, 0.14, 'noise', 4200, 0.55], [880, 0.11, 0.06, 'triangle', 1320, 0.7]],
+            // Bấm bỏ phiếu: tiếng "póc" bong bóng
+            'vote': [[420, 0, 0.09, 'sine', 980, 1.1]],
+            // Được chấp nhận: hợp âm trưởng đi lên + tiếng lấp lánh
+            'accept': [[523, 0, 0.1, 'square', null, 0.35], [659, 0.08, 0.1, 'square', null, 0.35], [784, 0.16, 0.1, 'square', null, 0.35],
+                [1047, 0.24, 0.4, 'square', null, 0.4], [1047, 0.24, 0.4, 'triangle', null, 0.9], [5000, 0.24, 0.5, 'noise', 9000, 0.25]],
+            // Bị từ chối: kèn buồn "wah wah wah waaah"
+            'reject': [[392, 0, 0.3, 'sawtooth', 370, 0.6], [370, 0.32, 0.3, 'sawtooth', 349, 0.6], [349, 0.64, 0.3, 'sawtooth', 330, 0.6], [330, 0.96, 0.75, 'sawtooth', 290, 0.6]],
+            // Đồng hồ: tiếng mõ gỗ
+            'tick': [[1500, 0, 0.04, 'triangle', 900, 1.2]],
             'drumroll': drumroll.concat([[120, 36 * 0.045, 0.4, 'sine', 60, 1.4], [3000, 36 * 0.045, 0.4, 'noise', null, 0.6]]),
-            'topic': [[1319, 0, 0.25, 'sine'], [1760, 0.08, 0.35, 'sine']],
-            'win': [[523, 0, 0.12, 'triangle'], [659, 0.12, 0.12, 'triangle'], [784, 0.24, 0.12, 'triangle'], [1047, 0.36, 0.35, 'triangle']],
-            // Đến lượt mình đánh bài: hai tiếng "pắp pắp"
-            'your-turn': [[880, 0, 0.08, 'sine'], [1175, 0.1, 0.12, 'sine']],
-            // Đến lượt mình ra đề: kèn ngắn ba nốt đi lên
-            'your-topic': [[523, 0, 0.12, 'square', null, 0.5], [659, 0.12, 0.12, 'square', null, 0.5], [784, 0.24, 0.3, 'square', null, 0.5], [1568, 0.24, 0.35, 'sine', null, 0.6]]
+            // Có chủ đề mới: chuông "ding" ngân
+            'topic': [[1319, 0, 0.6, 'sine'], [2637, 0, 0.3, 'sine', null, 0.35], [1760, 0.12, 0.7, 'sine', null, 0.7]],
+            // Thắng: kèn chiến thắng
+            'win': [[523, 0, 0.12, 'square', null, 0.35], [523, 0.14, 0.08, 'square', null, 0.35], [523, 0.24, 0.08, 'square', null, 0.35],
+                [698, 0.34, 0.3, 'square', null, 0.4], [622, 0.66, 0.15, 'square', null, 0.35], [698, 0.82, 0.12, 'square', null, 0.35],
+                [784, 0.96, 0.7, 'square', null, 0.45], [784, 0.96, 0.7, 'triangle', null, 0.9]],
+            // Tới lượt mình đánh bài: hai tiếng mộc cầm "ting ting"
+            'your-turn': [[784, 0, 0.18, 'triangle'], [1568, 0, 0.08, 'sine', null, 0.4], [1175, 0.13, 0.28, 'triangle'], [2349, 0.13, 0.1, 'sine', null, 0.4]],
+            // Tới lượt mình ra đề: kèn hiệu ngắn ba nốt đi lên
+            'your-topic': [[392, 0, 0.12, 'sawtooth', null, 0.3], [523, 0.12, 0.12, 'sawtooth', null, 0.3], [659, 0.24, 0.12, 'sawtooth', null, 0.3],
+                [784, 0.36, 0.45, 'sawtooth', null, 0.35], [784, 0.36, 0.45, 'triangle', null, 0.8]]
         };
         const notes = patterns[name];
         if (!notes) return;
@@ -372,6 +385,11 @@ function playCard(cardIndex, cardEl) {
     if (cardEl && effectsOn) cardEl.classList.add('flying');
     socket.emit('play_card', { card_index: cardIndex });
 }
+
+document.getElementById('skipTurnBtn').addEventListener('click', () => {
+    document.getElementById('skipTurnBtn').classList.add('hidden');
+    socket.emit('skip_turn');
+});
 
 function sendVote(isValid) {
     audio.play('vote');
@@ -711,7 +729,10 @@ function flipReveal(el, opts) {
 
 function bumpDrawPile(delay) {
     const pile = document.getElementById('drawPile');
-    setTimeout(() => replayAnimation(pile, 'drawing'), delay);
+    setTimeout(() => {
+        replayAnimation(pile, 'drawing');
+        audio.play('draw');
+    }, delay);
 }
 
 function updateSpectators(state) {
@@ -764,6 +785,10 @@ function updateGameScreen(state) {
         document.getElementById('voteOverlay').classList.add('hidden');
         if (state.state !== 'topic' && state.state !== 'playing') stopTimer();
     }
+
+    // Nút bỏ lượt: chỉ hiện khi tới lượt mình đánh
+    const canSkip = state.state === 'playing' && state.current_player_id === gameState.playerId;
+    document.getElementById('skipTurnBtn').classList.toggle('hidden', !canSkip);
 
     // Đồng hồ chọn ảnh của người đang tới lượt
     const playTimer = document.getElementById('playTimer');
@@ -1005,7 +1030,7 @@ function updateMyHand(state, prev) {
     newCards.forEach((el, i) => {
         const delay = 250 + i * 220;
         flipReveal(el, { from: pile, delay, duration: 750 });
-        if (effectsOn) bumpDrawPile(delay);
+        bumpDrawPile(delay);
     });
 }
 
@@ -1305,7 +1330,7 @@ function updateTurnToast(state) {
         icon = '🃏';
         mine = isMe;
         title = isMe ? 'Đến lượt bạn đánh!' : `Lượt của ${who}`;
-        sub = isMe ? 'Chọn một ảnh hợp đề trong tay bài' : `${who} đang chọn ảnh...`;
+        sub = isMe ? 'Chọn ảnh hợp đề, hoặc bỏ lượt rút 1 lá' : `${who} đang chọn ảnh...`;
     } else if (state.state === 'voting') {
         const needsMyVote = state.can_vote && (state.my_vote === null || state.my_vote === undefined);
         icon = '🗳️';

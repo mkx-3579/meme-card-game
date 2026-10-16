@@ -42,7 +42,7 @@
 
             <main class="menu-main">
                 <section class="menu-hero">
-                    <span class="tag-chip">2 đến 8 người · chơi online với bạn bè</span>
+                    <span class="tag-chip">2 đến 10 người · chơi online với bạn bè</span>
                     <h1 class="menu-title">Đánh meme,<br><span class="hl">cả bàn</span> cười.</h1>
                     <p class="menu-desc">Mỗi vòng một người ra đề, mọi người lần lượt đánh ảnh meme hợp nhất, cả bàn bỏ phiếu. Ai hết bài trước thì thắng.</p>
                     <div class="menu-fan" aria-hidden="true">
@@ -124,7 +124,7 @@
                     </div>
 
                     <div class="players-list">
-                        <h3 id="waitingCount">Người chơi (0/8)</h3>
+                        <h3 id="waitingCount">Người chơi (0/10)</h3>
                         <div id="playersList"></div>
                     </div>
 
@@ -216,9 +216,9 @@
                         </div>
                         <div class="deck" aria-hidden="true">
                             <div class="deck-stack">
-                                <div class="deck-card d1"></div>
-                                <div class="deck-card d2"></div>
-                                <div class="deck-card d3">M</div>
+                                <div class="deck-card card-back d1"></div>
+                                <div class="deck-card card-back d2"></div>
+                                <div class="deck-card card-back d3"></div>
                             </div>
                             <span class="pill">Chồng bài</span>
                         </div>
@@ -236,6 +236,7 @@
                             <p id="handStatus" class="status-text"></p>
                         </div>
                         <div id="playTimer" class="timer play-timer hidden"><div class="timer-fill"></div><span class="timer-text"></span></div>
+                        <button id="skipTurnBtn" class="btn btn-white btn-sm skip-btn hidden" type="button" title="Không có ảnh hợp đề? Bỏ lượt và rút thêm 1 lá">Bỏ lượt, rút 1 lá</button>
                         <div id="myHandCards" class="cards-container"></div>
                     </section>
                 </main>
