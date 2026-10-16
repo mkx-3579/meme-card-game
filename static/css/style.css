@@ -1215,18 +1215,9 @@ select:focus {
     border-radius: 14px;
 }
 
-.deck-card.d1 { background: var(--pink); transform: rotate(-7deg); }
-.deck-card.d2 { background: var(--yellow); transform: rotate(4deg); }
-.deck-card.d3 {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: white;
-    box-shadow: var(--shadow);
-    font-family: var(--font-display);
-    font-weight: 800;
-    font-size: 40px;
-}
+.deck-card.d1 { transform: rotate(-7deg); }
+.deck-card.d2 { transform: rotate(4deg); }
+.deck-card.d3 { box-shadow: var(--shadow); }
 
 /* --- Kết quả (con dấu) --- */
 
@@ -1296,27 +1287,53 @@ select:focus {
     margin-top: 10px;
 }
 
+.skip-btn {
+    margin-top: 10px;
+    align-self: flex-start;
+}
+
 /* --- Mặt sau lá bài + chồng bài úp nhỏ cạnh tay bài --- */
 
 .card-back {
+    /* Kiểu truyện tranh: nền mực tím than chấm bi hồng, viền nét đứt vàng, sticker "M" hình nổ ở giữa.
+       Cỡ chữ theo bề rộng lá (cqw) nên dùng được cho cả chồng bài nhỏ lẫn lá to */
+    container-type: inline-size;
+    overflow: hidden;
     border: 3px solid var(--ink);
     border-radius: 10px;
     background:
-        radial-gradient(circle at 50% 50%, var(--yellow) 0 30%, transparent 31%),
-        repeating-linear-gradient(45deg, var(--pink) 0 8px, #ff7aa0 8px 16px);
+        radial-gradient(circle, rgba(255, 92, 138, 0.55) 0 1.6px, transparent 2px) 0 0 / 9px 9px,
+        radial-gradient(circle at 50% 50%, rgba(61, 165, 255, 0.35), transparent 70%),
+        linear-gradient(150deg, #3b2350, #1a1a1a);
+}
+
+.card-back::before {
+    content: '';
+    position: absolute;
+    inset: 6%;
+    border: 2px dashed var(--yellow);
+    border-radius: 8px;
 }
 
 .card-back::after {
     content: 'M';
     position: absolute;
-    inset: 0;
+    left: 50%;
+    top: 50%;
+    width: 62%;
+    aspect-ratio: 1;
     display: flex;
     align-items: center;
     justify-content: center;
+    transform: translate(-50%, -50%) rotate(-12deg);
+    background: var(--yellow);
+    clip-path: polygon(50% 0%, 59.3% 15.2%, 75% 6.7%, 75.5% 24.5%, 93.3% 25%, 84.8% 40.7%, 100% 50%, 84.8% 59.3%, 93.3% 75%, 75.5% 75.5%, 75% 93.3%, 59.3% 84.8%, 50% 100%, 40.7% 84.8%, 25% 93.3%, 24.5% 75.5%, 6.7% 75%, 15.2% 59.3%, 0% 50%, 15.2% 40.7%, 6.7% 25%, 24.5% 24.5%, 25% 6.7%, 40.7% 15.2%);
     font-family: var(--font-display);
     font-weight: 800;
-    font-size: 20px;
+    font-size: 30cqw;
+    line-height: 1;
     color: var(--ink);
+    text-shadow: 2px 2px 0 var(--pink);
 }
 
 .draw-pile {
@@ -1352,9 +1369,6 @@ select:focus {
     border-width: 0;
 }
 
-.card-cover.card-back::after {
-    font-size: 34px;
-}
 
 .flip-host {
     perspective: 900px;

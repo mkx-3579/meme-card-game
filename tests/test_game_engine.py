@@ -536,3 +536,36 @@ class TestRoomLifecycle(unittest.TestCase):
         self.assertFalse(game.add_spectator('D', 'D'))
         self.assertTrue(game.remove_player('C'))
         self.assertEqual(game.spectators, {})
+
+
+class TestSkipTurn(unittest.TestCase):
+    def test_skip_draws_one_card_and_passes_turn(self):
+        game = make_game('ABC')
+        self.assertEqual(game.skip_turn('A'), 1)
+        self.assertEqual(len(game.players['A'].hand), HAND_SIZE + 1)
+        self.assertEqual(game.state, GameState.PLAYING)
+        self.assertEqual(game.get_current_player().player_id, 'B')
+        self.assertIsNone(game.current_card)
+
+    def test_only_current_player_can_skip_while_playing(self):
+        game = make_game('ABC', start=False)
+        self.assertIsNone(game.skip_turn('A'))  # chưa bắt đầu
+        game.start_game()
+        self.assertIsNone(game.skip_turn('A'))  # đang ra đề
+        set_topic(game)
+        self.assertIsNone(game.skip_turn('B'))  # chưa tới lượt B
+        game.player_play_card('A', 0)
+        self.assertIsNone(game.skip_turn('A'))  # đang bỏ phiếu
+
+    def test_everyone_skipping_starts_next_round(self):
+        game = make_game('AB')
+        game.skip_turn('A')
+        game.skip_turn('B')
+        self.assertEqual(game.state, GameState.TOPIC)
+        self.assertEqual(game.current_round, 2)
+
+    def test_room_holds_ten_players(self):
+        game = Game('t', seed=SEED)
+        for i in range(10):
+            self.assertTrue(game.add_player(str(i), str(i)))
+        self.assertFalse(game.add_player('x', 'x'))

@@ -9,6 +9,7 @@ Thả file `.mp3`, `.ogg` hoặc `.wav` vào thư mục này, đặt đúng tên
 | `topic` | Có chủ đề mới cho vòng | "notification ding", "bell" |
 | `your-turn` | Đến lượt bạn đánh bài | "pop", "ui notification" |
 | `your-topic` | Đến lượt bạn ra chủ đề | "fanfare short", "trumpet notification" |
+| `draw` | Rút thêm lá (bỏ lượt, bị phạt, chia bài) | "card slide", "card draw" |
 | `vote` | Bạn bấm bỏ phiếu | "click", "button" |
 | `drumroll` | 5 giây cuối khi bỏ phiếu | "drum roll" |
 | `tick` | 3 giây cuối, nếu bạn chưa bỏ phiếu hoặc chưa ra đề | "clock tick" |

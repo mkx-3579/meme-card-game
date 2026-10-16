@@ -10,6 +10,8 @@ from topics import TOPIC_SUGGESTIONS
 HAND_SIZE = 5
 MIN_PLAYERS = 2
 REJECT_DRAW = 2  # Lá bị từ chối: người đánh rút thêm bấy nhiêu lá (phạt)
+SKIP_DRAW = 1  # Tự bỏ lượt: rút thêm bấy nhiêu lá thay vì đánh
+MAX_PLAYERS = 10
 # Thời gian mặc định, chủ phòng chỉnh được ở phòng chờ
 PLAY_SECONDS = 45  # Thời gian chọn ảnh meme để đánh, hết giờ thì mất lượt
 VOTE_SECONDS = 30  # Thời gian tối đa cho một lượt bỏ phiếu
@@ -67,7 +69,7 @@ class Player:
         return data
 
 class Game:
-    def __init__(self, game_id, max_players=8, seed=None, clock=time.monotonic):
+    def __init__(self, game_id, max_players=MAX_PLAYERS, seed=None, clock=time.monotonic):
         self.game_id = game_id
         self.max_players = max_players
         self.players = {}  # Thứ tự thêm vào = thứ tự lượt chơi
@@ -275,6 +277,19 @@ class Game:
             self._next_round()
         else:
             self._open_turn()
+
+    def skip_turn(self, player_id):
+        """Người đang tới lượt tự bỏ lượt: rút thêm lá thay vì đánh. Trả về số lá đã rút, hoặc None"""
+        if self.state != GameState.PLAYING:
+            return None
+        player = self.get_current_player()
+        if player is None or player.player_id != player_id:
+            return None
+        drawn = self.deck.draw_multiple(SKIP_DRAW)
+        for card in drawn:
+            player.add_card(card)
+        self._advance_turn()
+        return len(drawn)
 
     def expire_turn(self, turn_id=None):
         """Hết giờ chọn ảnh: người đang tới lượt mất lượt. Trả về người bị bỏ qua, hoặc None"""
