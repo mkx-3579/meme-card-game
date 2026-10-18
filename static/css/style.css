@@ -1115,12 +1115,12 @@ select:focus {
 
 /* --- Bàn chơi --- */
 
-/* Bàn chơi: viền gỗ, mặt nỉ xanh có vạch chỉ vàng như bàn sòng bài, nét mực kiểu truyện tranh */
+/* Bàn chơi kiểu GenZ: mặt caro tím, viền neon xanh chanh + vòng hồng, phát sáng nhẹ */
 .play-table {
-    --felt: #1f8f62;
-    --felt-dark: #126b47;
-    --wood: #b06a32;
-    --wood-dark: #7a431c;
+    --felt: #241840;
+    --felt-check: #2e2052;
+    --rim: #c8ff2e;
+    --rim-2: #ff3ea5;
     position: relative;
     isolation: isolate;
     display: flex;
@@ -1129,39 +1129,36 @@ select:focus {
     flex-wrap: wrap;
     gap: 40px 56px;
     min-height: 340px;
-    margin-top: 30px;
+    margin-top: 34px;
     padding: 84px 40px 38px;
-    background:
-        repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.07) 0 3px, transparent 3px 22px),
-        linear-gradient(160deg, var(--wood), var(--wood-dark));
-    border: 4px solid var(--ink);
-    border-radius: 120px;
-    box-shadow: var(--shadow-lg), inset 0 3px 0 rgba(255, 255, 255, 0.25);
+    background-color: var(--felt);
+    background-image:
+        linear-gradient(45deg, var(--felt-check) 25%, transparent 25%, transparent 75%, var(--felt-check) 75%),
+        linear-gradient(45deg, var(--felt-check) 25%, transparent 25%, transparent 75%, var(--felt-check) 75%);
+    background-size: 56px 56px;
+    background-position: 0 0, 28px 28px;
+    border: 4px solid var(--rim);
+    border-radius: 64px;
+    box-shadow:
+        0 0 0 6px #140e24,
+        0 0 0 9px var(--rim-2),
+        0 0 40px rgba(200, 255, 46, 0.35),
+        inset 0 0 60px rgba(0, 0, 0, 0.55);
 }
 
-/* Mặt nỉ nằm trong viền gỗ */
+/* Lớp tối mờ ở giữa bàn để lá bài nổi hơn trên nền caro */
 .play-table::before {
     content: "";
     position: absolute;
-    inset: 16px;
+    inset: 0;
     z-index: -1;
-    border: 3px solid var(--ink);
-    border-radius: 104px;
-    background:
-        radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.5px) 0 0 / 7px 7px,
-        radial-gradient(ellipse at 50% 40%, var(--felt) 0%, var(--felt) 45%, var(--felt-dark) 100%);
-    box-shadow: inset 0 8px 18px rgba(0, 0, 0, 0.35);
+    border-radius: inherit;
+    background: radial-gradient(ellipse at 50% 55%, rgba(20, 14, 36, 0.55), transparent 70%);
+    pointer-events: none;
 }
 
-/* Vạch chỉ vàng chạy quanh mặt bàn */
 .play-table::after {
-    content: "";
-    position: absolute;
-    inset: 32px;
-    z-index: -1;
-    border: 2px dashed rgba(255, 210, 63, 0.55);
-    border-radius: 90px;
-    pointer-events: none;
+    content: none;
 }
 
 /* --- Ô tròn báo lượt ở mép trên bàn --- */
@@ -1181,40 +1178,41 @@ select:focus {
 
 .turn-seat-ring {
     position: relative;
+    isolation: isolate;
     display: grid;
     place-items: center;
-    width: 66px;
-    height: 66px;
-    background: white;
-    border: 4px solid var(--ink);
+    width: 76px;
+    height: 76px;
     border-radius: 50%;
-    box-shadow: var(--shadow);
+    box-shadow: 0 0 24px rgba(61, 227, 255, 0.55);
 }
 
-/* Vòng sáng quay quanh avatar cho biết đang chờ người này */
+/* Vòng màu như story, quay chầm chậm */
 .turn-seat-ring::before {
     content: "";
     position: absolute;
-    inset: -9px;
+    inset: 0;
+    z-index: -1;
     border-radius: 50%;
-    border: 4px dashed var(--yellow);
-    animation: seat-spin 6s linear infinite;
+    background: conic-gradient(#c8ff2e, #3de3ff, #ff3ea5, #c8ff2e);
+    animation: seat-spin 4s linear infinite;
 }
 
 .turn-seat .avatar {
-    width: 50px;
-    height: 50px;
-    font-size: 24px;
+    width: 64px;
+    height: 64px;
+    border: 4px solid #140e24;
+    font-size: 26px;
 }
 
 .turn-seat-label {
-    max-width: 220px;
-    padding: 3px 12px;
+    max-width: 240px;
+    padding: 4px 14px;
     overflow: hidden;
-    background: var(--yellow);
-    border: 2px solid var(--ink);
+    background: #140e24;
+    border: 2px solid #c8ff2e;
     border-radius: 999px;
-    box-shadow: 2px 2px 0 var(--ink);
+    color: white;
     font-size: 13px;
     font-weight: 800;
     line-height: 1.4;
@@ -1223,26 +1221,24 @@ select:focus {
 }
 
 .turn-seat.me .turn-seat-ring {
-    background: var(--yellow);
+    box-shadow: 0 0 26px rgba(255, 62, 165, 0.7);
     animation: seat-pulse 1.1s ease-in-out infinite;
 }
 
-.turn-seat.me .turn-seat-ring::before {
-    border-color: var(--pink);
-}
-
 .turn-seat.me .turn-seat-label {
-    background: var(--pink);
-    color: var(--ink);
+    background: #ff3ea5;
+    border-color: #140e24;
+    color: #140e24;
 }
 
 .turn-seat.voting .turn-seat-ring::before {
-    border-color: white;
-    animation-duration: 12s;
+    animation-duration: 10s;
 }
 
 .turn-seat.voting .turn-seat-label {
-    background: white;
+    background: #c8ff2e;
+    border-color: #140e24;
+    color: #140e24;
 }
 
 .turn-seat.seat-pop .turn-seat-ring {
@@ -1429,24 +1425,22 @@ select:focus {
 /* --- Mặt sau lá bài + chồng bài úp nhỏ cạnh tay bài --- */
 
 .card-back {
-    /* Kiểu truyện tranh: nền mực tím than chấm bi hồng, viền nét đứt vàng, sticker "M" hình nổ ở giữa.
+    /* Kiểu GenZ: caro hồng đen, sticker tròn "M" xanh chanh ở giữa.
        Cỡ chữ theo bề rộng lá (cqw) nên dùng được cho cả chồng bài nhỏ lẫn lá to */
     container-type: inline-size;
     overflow: hidden;
-    border: 3px solid var(--ink);
+    border: 3px solid white;
     border-radius: 10px;
-    background:
-        radial-gradient(circle, rgba(255, 92, 138, 0.55) 0 1.6px, transparent 2px) 0 0 / 9px 9px,
-        radial-gradient(circle at 50% 50%, rgba(61, 165, 255, 0.35), transparent 70%),
-        linear-gradient(150deg, #3b2350, #1a1a1a);
+    background-color: #ff3ea5;
+    background-image:
+        linear-gradient(45deg, #140e24 25%, transparent 25%, transparent 75%, #140e24 75%),
+        linear-gradient(45deg, #140e24 25%, transparent 25%, transparent 75%, #140e24 75%);
+    background-size: 14px 14px;
+    background-position: 0 0, 7px 7px;
 }
 
 .card-back::before {
-    content: '';
-    position: absolute;
-    inset: 6%;
-    border: 2px dashed var(--yellow);
-    border-radius: 8px;
+    content: none;
 }
 
 .card-back::after {
@@ -1454,20 +1448,21 @@ select:focus {
     position: absolute;
     left: 50%;
     top: 50%;
-    width: 62%;
+    width: 52%;
     aspect-ratio: 1;
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: center;
-    transform: translate(-50%, -50%) rotate(-12deg);
-    background: var(--yellow);
-    clip-path: polygon(50% 0%, 59.3% 15.2%, 75% 6.7%, 75.5% 24.5%, 93.3% 25%, 84.8% 40.7%, 100% 50%, 84.8% 59.3%, 93.3% 75%, 75.5% 75.5%, 75% 93.3%, 59.3% 84.8%, 50% 100%, 40.7% 84.8%, 25% 93.3%, 24.5% 75.5%, 6.7% 75%, 15.2% 59.3%, 0% 50%, 15.2% 40.7%, 6.7% 25%, 24.5% 24.5%, 25% 6.7%, 40.7% 15.2%);
+    transform: translate(-50%, -50%) rotate(-10deg);
+    background: #c8ff2e;
+    border: max(2px, 3cqw) solid #140e24;
+    border-radius: 50%;
     font-family: var(--font-display);
     font-weight: 800;
-    font-size: 30cqw;
+    font-size: 26cqw;
     line-height: 1;
-    color: var(--ink);
-    text-shadow: 2px 2px 0 var(--pink);
+    color: #140e24;
 }
 
 .draw-pile {
@@ -2458,18 +2453,17 @@ body.no-fx *::after {
         margin-top: 26px;
         padding: 70px 18px 30px;
         border-width: 3px;
-        border-radius: 48px;
-        box-shadow: 5px 5px 0 var(--ink);
-    }
-
-    .play-table::before {
-        inset: 10px;
         border-radius: 40px;
     }
 
-    .play-table::after {
-        inset: 20px;
-        border-radius: 32px;
+    .play-table {
+        background-size: 40px 40px;
+        background-position: 0 0, 20px 20px;
+        box-shadow:
+            0 0 0 4px #140e24,
+            0 0 0 7px var(--rim-2),
+            0 0 28px rgba(200, 255, 46, 0.3),
+            inset 0 0 40px rgba(0, 0, 0, 0.55);
     }
 
     .turn-seat {
@@ -2477,14 +2471,14 @@ body.no-fx *::after {
     }
 
     .turn-seat-ring {
-        width: 54px;
-        height: 54px;
+        width: 62px;
+        height: 62px;
     }
 
     .turn-seat .avatar {
-        width: 40px;
-        height: 40px;
-        font-size: 19px;
+        width: 52px;
+        height: 52px;
+        font-size: 21px;
     }
 
     .deck {
@@ -2688,4 +2682,103 @@ body.no-fx *::after {
     .settings-bar {
         gap: 8px;
     }
+}
+
+/* ==================== Màn chơi kiểu GenZ ====================
+   Nền tím than chấm bi, điểm xanh chanh / hồng / xanh ngọc neon.
+   Chỉ đổi màu ở màn chơi; phòng chờ và trang chủ giữ giao diện giấy cũ. */
+
+#gameScreen {
+    --yellow: #c8ff2e;
+    --pink: #ff3ea5;
+    --blue: #3de3ff;
+    --light-pink: #ffd6ee;
+    --shadow-sm: 3px 3px 0 #ff3ea5;
+    --shadow: 5px 5px 0 #ff3ea5;
+    --shadow-lg: 7px 7px 0 #ff3ea5;
+    background-color: #140e24;
+    background-image: radial-gradient(#3a2a63 1.5px, transparent 1.6px);
+    background-size: 22px 22px;
+}
+
+#gameScreen .game-header {
+    background: #1c1433;
+    border-bottom: 3px solid #3a2a63;
+}
+
+#gameScreen .game-header .brand-name,
+#gameScreen .players-panel > .panel-title,
+#gameScreen .hand-head .panel-title,
+#gameScreen .spectators-title {
+    color: white;
+}
+
+#gameScreen .brand-mark {
+    box-shadow: 3px 3px 0 #ff3ea5;
+}
+
+#gameScreen #volumeSlider {
+    accent-color: #c8ff2e;
+}
+
+#gameScreen .status-text,
+#gameScreen .winner-note {
+    color: #b9aed6;
+}
+
+#gameScreen .my-hand.my-turn {
+    background: rgba(200, 255, 46, 0.1);
+    border-color: #c8ff2e;
+}
+
+#gameScreen .my-hand.my-turn .status-text {
+    color: #140e24;
+}
+
+/* Đề bài như một tin nhắn vừa tới */
+#gameScreen .topic-banner {
+    background: white;
+    border: 0;
+    border-radius: 24px 24px 24px 6px;
+    box-shadow: 6px 6px 0 #3de3ff;
+}
+
+#gameScreen .topic-icon {
+    background: #140e24;
+    border-color: #140e24;
+    color: #c8ff2e;
+}
+
+#gameScreen .topic-meta {
+    color: #6b2bd9;
+}
+
+/* Lá bài: khung polaroid trắng, bóng hồng; lá trên bàn bóng xanh ngọc */
+#gameScreen .meme-card {
+    border-color: white;
+}
+
+#gameScreen .meme-card.big {
+    box-shadow: 8px 8px 0 #3de3ff;
+}
+
+#gameScreen .card.selected {
+    box-shadow: 0 0 0 4px #140e24, 8px 10px 0 #3de3ff;
+}
+
+#gameScreen .my-hand.my-turn .card.selected {
+    outline-color: #c8ff2e;
+}
+
+#gameScreen .table-empty p {
+    background: rgba(20, 14, 36, 0.55);
+}
+
+.table-empty-title {
+    display: block;
+    margin-bottom: 4px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 18px;
+    color: #c8ff2e;
 }
