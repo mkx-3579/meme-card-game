@@ -1390,37 +1390,47 @@ select:focus {
     font-weight: 700;
 }
 
-.cards-container {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: flex-end;
-    gap: 14px 6px;
-    padding: 14px 6px 12px;
+/* Tay bài xòe hình quạt: client.js đặt vị trí từng lá (transform), không cuộn ngang */
+.cards-container.fan {
+    position: relative;
+    min-height: 120px;
+    margin-top: 6px;
+    outline: none;
+}
+
+.cards-container.fan .card {
+    position: absolute;
+    left: 0;
+    bottom: 10px;
+    transform-origin: 50% 100%;
 }
 
 .card {
-    --rot: rotate(0deg);
     position: relative;
     cursor: pointer;
-    transform: var(--rot);
-    transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+    transition: box-shadow 0.2s, filter 0.2s;
 }
 
-.card:nth-child(4n+1) { --rot: rotate(-4deg) translateY(6px); }
-.card:nth-child(4n+2) { --rot: rotate(-1.5deg); }
-.card:nth-child(4n+3) { --rot: rotate(1.5deg); }
-.card:nth-child(4n+4) { --rot: rotate(4deg) translateY(6px); }
+.cards-container.animate .card {
+    transition: transform 0.28s cubic-bezier(.2, .9, .3, 1.25), box-shadow 0.2s, filter 0.2s;
+}
 
-.card:hover:not(.disabled),
+.card.selected {
+    box-shadow: 9px 9px 0 var(--ink);
+}
+
+.my-hand.my-turn .card.selected {
+    outline: 4px solid var(--yellow);
+    outline-offset: 2px;
+}
+
 .card:focus-visible {
-    z-index: 2;
-    transform: translateY(-14px) rotate(0deg);
-    box-shadow: 8px 8px 0 var(--ink);
+    outline: 4px solid var(--blue, #3d7bff);
+    outline-offset: 2px;
 }
 
 .card.disabled {
-    cursor: not-allowed;
+    cursor: pointer;
     filter: saturate(0.75);
 }
 
@@ -1429,9 +1439,88 @@ select:focus {
 }
 
 .card.flying {
-    transform: translateY(-80px) scale(1.08);
-    opacity: 0;
-    transition: transform 0.3s ease-in, opacity 0.3s ease-in;
+    visibility: hidden;
+}
+
+/* Lá vừa bốc: viền sáng nhấp nháy + nhãn MỚI */
+.card.just-drawn {
+    animation: new-glow 0.65s ease-in-out 4 alternate;
+}
+
+.card.just-drawn::after {
+    content: "MỚI";
+    position: absolute;
+    top: -12px;
+    right: -8px;
+    z-index: 5;
+    padding: 2px 8px;
+    background: var(--yellow);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 2px 2px 0 var(--ink);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--ink);
+    transform: rotate(8deg);
+}
+
+@keyframes new-glow {
+    from { box-shadow: 5px 5px 0 var(--ink), 0 0 0 0 rgba(255, 210, 63, 0); }
+    to { box-shadow: 5px 5px 0 var(--ink), 0 0 0 8px rgba(255, 210, 63, 0.9); }
+}
+
+/* Nút < Đánh > dưới tay bài, nhất là cho điện thoại */
+.hand-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.hand-arrow {
+    width: 52px;
+    height: 46px;
+    padding: 0;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.hand-play {
+    min-width: 170px;
+    height: 46px;
+}
+
+.hand-play:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Lá úp bay từ chồng bài tới chỗ người khác */
+.flying-back {
+    position: fixed;
+    z-index: 900;
+    pointer-events: none;
+    box-shadow: var(--shadow-sm);
+}
+
+.player-item.got-card {
+    animation: pile-bump 0.35s ease-out;
+}
+
+.deck-stack.drawing .d3 {
+    animation: pile-bump 0.3s ease-out;
+}
+
+/* Lá đáp xuống bàn: rung nhẹ */
+.stage.thud {
+    animation: thud 0.35s ease-out;
+}
+
+@keyframes thud {
+    0% { transform: scale(1); }
+    35% { transform: scale(0.97) translateY(3px); }
+    100% { transform: scale(1); }
 }
 
 /* --- Cột phải --- */
@@ -2273,34 +2362,8 @@ body.no-fx *::after {
         font-size: 20px;
     }
 
-    /* Tay bài cuộn ngang */
-    .cards-container {
-        flex-wrap: nowrap;
-        justify-content: flex-start;
-        gap: 12px;
-        overflow-x: auto;
-        margin: 0 -16px;
-        padding: 16px 16px 14px;
-        scroll-snap-type: x proximity;
-        scroll-padding-left: 16px;
-    }
-
-    .my-hand.my-turn .cards-container {
-        margin: 0 -10px;
-        padding-left: 10px;
-        padding-right: 10px;
-    }
-
-    .card {
-        scroll-snap-align: start;
-    }
-
-    .card:nth-child(n) {
-        --rot: rotate(0deg);
-    }
-
-    .card:nth-child(3n+1) {
-        --rot: rotate(-2deg);
+    .cards-container.fan {
+        margin: 6px 4px 0;
     }
 
     .meme-card.small {
@@ -2314,10 +2377,11 @@ body.no-fx *::after {
         font-size: 11px;
     }
 
+    /* Nổi ở mép trên để không che tay bài và nút < Đánh > ở đáy màn hình */
     .turn-toast {
         position: fixed;
-        top: auto;
-        bottom: 12px;
+        top: 10px;
+        bottom: auto;
         right: 12px;
         left: 12px;
         max-width: none;

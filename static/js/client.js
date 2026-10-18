@@ -150,6 +150,8 @@ class GameAudio {
                 .concat([[160, 8 * 0.055, 0.12, 'sine', 70, 1.1]]),
             // Rút một lá: tiếng trượt lá + "tách" nhẹ
             'draw': [[1600, 0, 0.14, 'noise', 4200, 0.55], [880, 0.11, 0.06, 'triangle', 1320, 0.7]],
+            // Chọn lá trên tay: tiếng lá bài lướt nhẹ
+            'select': [[2600, 0, 0.06, 'noise', 4800, 0.35], [1200, 0.02, 0.04, 'triangle', 1600, 0.25]],
             // Bấm bỏ phiếu: tiếng "póc" bong bóng
             'vote': [[420, 0, 0.09, 'sine', 980, 1.1]],
             // Được chấp nhận: hợp âm trưởng đi lên + tiếng lấp lánh
@@ -382,9 +384,147 @@ document.getElementById('leaveGameBtnFooter').addEventListener('click', () => {
 });
 
 function playCard(cardIndex, cardEl) {
-    if (cardEl && effectsOn) cardEl.classList.add('flying');
+    // Nhớ chỗ lá đang nằm trên tay để lá trên bàn bay ra đúng từ đó
+    if (cardEl) {
+        hand.pendingPlay = { rect: cardEl.getBoundingClientRect(), at: Date.now() };
+        if (effectsOn) cardEl.classList.add('flying');
+    }
     socket.emit('play_card', { card_index: cardIndex });
 }
+
+// ==================== Tay bài xòe ====================
+
+// Lá đang chọn: chồi lên, hai bên dạt ra. Nhớ theo id lá để giữ khi state đổi.
+// source = 'hover' (rê chuột) thì chuột rời tay bài là bỏ chọn
+const hand = { selectedId: null, source: null, pendingPlay: null, canPlay: false };
+
+function handCards() {
+    return Array.from(document.querySelectorAll('#myHandCards .card'));
+}
+
+function selectedIndex(cards) {
+    return cards.findIndex(el => el.dataset.cardId === hand.selectedId);
+}
+
+function selectCard(index, source) {
+    const cards = handCards();
+    if (!cards.length) return;
+    index = Math.max(0, Math.min(cards.length - 1, index));
+    const changed = cards[index].dataset.cardId !== hand.selectedId;
+    hand.selectedId = cards[index].dataset.cardId;
+    hand.source = source;
+    layoutHand();
+    if (changed) audio.play('select');
+}
+
+function clearSelection() {
+    hand.selectedId = null;
+    hand.source = null;
+    layoutHand();
+}
+
+function stepSelection(delta) {
+    const cards = handCards();
+    if (!cards.length) return;
+    const current = selectedIndex(cards);
+    const start = current < 0 ? (delta > 0 ? -1 : cards.length) : current;
+    selectCard(start + delta, 'nav');
+}
+
+function playSelected() {
+    const cards = handCards();
+    const index = selectedIndex(cards);
+    if (!hand.canPlay || index < 0) return;
+    playCard(Number(cards[index].dataset.index), cards[index]);
+}
+
+/**
+ * Xếp các lá thành hình quạt vừa khung tay bài, không cuộn ngang.
+ * Lá chọn nằm trên cùng, nhô lên; lá hai bên giãn ra để nhìn rõ.
+ */
+function layoutHand() {
+    const container = document.getElementById('myHandCards');
+    const cards = handCards();
+    const nav = document.getElementById('handNav');
+    nav.classList.toggle('hidden', cards.length === 0);
+    if (!cards.length) {
+        container.style.height = '';
+        return;
+    }
+
+    const n = cards.length;
+    const tilt = Math.min(4, 20 / n);  // quạt xòe tối đa khoảng ±10 độ
+    const w = cards[0].offsetWidth;
+    const h = Math.max(...cards.map(el => el.offsetHeight));
+    const sel = selectedIndex(cards);
+    const lift = Math.round(w * 0.2);
+    // Lá ngoài cùng nghiêng nên góc trên chìa ra ngoài: chừa lề hai bên cho khỏi tràn khung
+    const pad = Math.ceil(h * Math.sin(tilt * ((n - 1) / 2) * Math.PI / 180));
+    const W = Math.max(w, container.clientWidth - 2 * pad);
+
+    // Khoảng cách giữa hai lá liền nhau: đủ chỗ thì để rời, chật thì chồng lên nhau
+    const avail = Math.max(0, W - w);
+    const minStep = Math.max(10, w * 0.12);
+    let step = n > 1 ? Math.min(w * 1.04, avail / (n - 1)) : 0;
+    let gap = step;
+    const sides = sel < 0 || n === 1 ? 0 : (sel > 0) + (sel < n - 1);
+    if (sides && step < w * 0.85) {
+        // Chừa khe rộng hai bên lá chọn, các lá còn lại khít lại
+        gap = Math.min(w * 0.72, (avail - (n - 1 - sides) * minStep) / sides);
+        gap = Math.max(gap, step);
+        step = n - 1 - sides > 0 ? Math.max(minStep, (avail - sides * gap) / (n - 1 - sides)) : step;
+    }
+
+    const xs = [0];
+    for (let i = 1; i < n; i++) {
+        const wide = sel >= 0 && (i === sel || i - 1 === sel);
+        xs.push(xs[i - 1] + (wide ? gap : step));
+    }
+    const offset = pad + Math.max(0, (W - (xs[n - 1] + w)) / 2);
+    const mid = (n - 1) / 2;
+
+    cards.forEach((el, i) => {
+        const d = i - mid;
+        let rot = d * tilt;
+        let y = mid ? Math.pow(d / mid, 2) * Math.min(18, w * 0.1) : 0;
+        let scale = 1;
+        if (i === sel) {
+            rot = 0;
+            y = -lift;
+            scale = 1.08;
+        }
+        el.classList.toggle('selected', i === sel);
+        el.style.zIndex = i === sel ? 50 : i + 1;
+        el.style.transform = `translate(${Math.round(offset + xs[i])}px, ${y.toFixed(1)}px) rotate(${rot.toFixed(2)}deg) scale(${scale})`;
+    });
+    container.style.height = `${h + lift + 26}px`;
+
+    const playBtn = document.getElementById('handPlayBtn');
+    playBtn.disabled = !hand.canPlay || sel < 0;
+    playBtn.textContent = hand.canPlay
+        ? (sel < 0 ? 'Chọn một lá để đánh' : 'Đánh lá này')
+        : 'Chưa tới lượt bạn';
+}
+
+(function setupHand() {
+    const container = document.getElementById('myHandCards');
+    container.addEventListener('pointerleave', e => {
+        if (e.pointerType === 'mouse' && hand.source === 'hover') clearSelection();
+    });
+    container.addEventListener('keydown', e => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            stepSelection(e.key === 'ArrowLeft' ? -1 : 1);
+            const el = handCards()[selectedIndex(handCards())];
+            if (el) el.focus({ preventScroll: true });
+        }
+    });
+    document.getElementById('handPrevBtn').addEventListener('click', () => stepSelection(-1));
+    document.getElementById('handNextBtn').addEventListener('click', () => stepSelection(1));
+    document.getElementById('handPlayBtn').addEventListener('click', playSelected);
+    if (window.ResizeObserver) new ResizeObserver(() => layoutHand()).observe(container);
+    else window.addEventListener('resize', layoutHand);
+})();
 
 document.getElementById('skipTurnBtn').addEventListener('click', () => {
     document.getElementById('skipTurnBtn').classList.add('hidden');
@@ -683,38 +823,61 @@ function flipReveal(el, opts) {
     opts = opts || {};
     const duration = opts.duration || 700;
     const delay = opts.delay || 0;
-    const flyPart = opts.from ? 0.5 : 0.15;  // phần thời gian bay úp, còn lại để lật
+    const fromRect = opts.fromRect || (opts.from && opts.from.getBoundingClientRect());
+    const flyPart = fromRect ? 0.5 : 0.15;  // phần thời gian bay, còn lại để lật
+    const faceUp = !!opts.faceUp;            // lá của mình đánh ra: bay ngửa, không lật
+    const spin = opts.spin || 0;             // xoay vòng lúc bay (độ)
 
-    const cover = document.createElement('div');
-    cover.className = 'card-cover card-back';
-    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-    el.appendChild(cover);
+    let cover = null;
+    if (!faceUp) {
+        cover = document.createElement('div');
+        cover.className = 'card-cover card-back';
+        if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+        el.appendChild(cover);
+    }
 
     let dx = 0, dy = 0, scale = 1;
-    if (opts.from) {
-        const a = opts.from.getBoundingClientRect();
+    if (fromRect) {
         const b = el.getBoundingClientRect();
-        if (a.width && b.width) {
-            dx = (a.left + a.width / 2) - (b.left + b.width / 2);
-            dy = (a.top + a.height / 2) - (b.top + b.height / 2);
-            scale = Math.max(0.2, Math.min(1, a.width / b.width));
+        if (fromRect.width && b.width) {
+            dx = (fromRect.left + fromRect.width / 2) - (b.left + b.width / 2);
+            dy = (fromRect.top + fromRect.height / 2) - (b.top + b.height / 2);
+            scale = Math.max(0.2, Math.min(1, fromRect.width / b.width));
         }
     } else {
         dy = opts.lift || -40;
         scale = 0.85;
     }
-    // Giữ độ nghiêng sẵn có của lá (tay bài xòe) ở cuối hiệu ứng
+    // Giữ vị trí + độ nghiêng sẵn có của lá (tay bài xòe) ở cuối hiệu ứng.
+    // Tách phần dịch chuyển ra ngoài để phóng to/thu nhỏ quanh đúng chỗ lá nằm
     const base = getComputedStyle(el).transform;
-    const tail = base && base !== 'none' ? ' ' + base : '';
-    const at = (x, y, s, deg) => `perspective(900px) translate(${x}px, ${y}px) scale(${s}) rotateY(${deg}deg)${tail}`;
+    let lead = '', tail = '';
+    if (base && base !== 'none' && window.DOMMatrix) {
+        const m = new DOMMatrix(base);
+        lead = `translate(${m.e}px, ${m.f}px) `;
+        m.e = 0;
+        m.f = 0;
+        tail = ' ' + m.toString();
+    }
+    const at = (x, y, s, deg, z) =>
+        `${lead}perspective(900px) translate(${x}px, ${y}px) scale(${s}) rotate(${z || 0}deg) rotateY(${deg}deg)${tail}`;
+    const back = faceUp ? 0 : 180;
+    const half = faceUp ? 0 : 90;
     const flipMid = flyPart + (1 - flyPart) / 2;
+    // Bay theo đường vòng cung: điểm giữa đường bay nhô lên cao
+    const hop = opts.arc ? -Math.max(60, Math.abs(dx) * 0.25) : 0;
 
-    const anim = el.animate([
-        { transform: at(dx, dy, scale, 180), offset: 0 },
-        { transform: at(0, -14, 1.04, 180), offset: flyPart },
-        { transform: at(0, -14, 1.04, 90), offset: flipMid },
-        { transform: at(0, 0, 1, 0), offset: 1 }
-    ], { duration, delay, easing: 'ease-out', fill: 'backwards' });
+    const frames = [{ transform: at(dx, dy, scale, back, spin), offset: 0 }];
+    if (opts.arc) frames.push({ transform: at(dx * 0.45, dy * 0.45 + hop, (scale + 1.2) / 2, back, spin / 2), offset: flyPart * 0.55 });
+    frames.push(
+        { transform: at(0, -18, 1.14, back, spin / 6), offset: flyPart },
+        { transform: at(0, -18, 1.14, half, 0), offset: flipMid },
+        { transform: at(0, 4, 0.96, 0, 0), offset: 0.9 },
+        { transform: at(0, 0, 1, 0, 0), offset: 1 }
+    );
+    const anim = el.animate(frames, { duration, delay, easing: 'ease-out', fill: 'backwards' });
+    if (opts.onLand) anim.onfinish = opts.onLand;
+    if (!cover) return;
     const coverAnim = cover.animate([
         { opacity: 1, offset: 0 },
         { opacity: 1, offset: flipMid },
@@ -722,8 +885,8 @@ function flipReveal(el, opts) {
         { opacity: 0, offset: 1 }
     ], { duration, delay, fill: 'both' });
     const cleanup = () => cover.remove();
-    anim.onfinish = cleanup;
-    anim.oncancel = cleanup;
+    anim.addEventListener('finish', cleanup);
+    anim.addEventListener('cancel', cleanup);
     coverAnim.oncancel = cleanup;
 }
 
@@ -819,15 +982,38 @@ function handleEvents(state, prev) {
         }
     }
 
+    // Người khác bốc thêm lá (bỏ lượt, bị phạt): lá úp bay từ chồng bài về chỗ ngồi
+    if (prev && prev.state !== 'waiting') {
+        state.players.forEach(p => {
+            if (p.player_id === gameState.playerId) return;
+            const before = prev.players.find(q => q.player_id === p.player_id);
+            const gained = before ? p.hand_count - before.hand_count : 0;
+            if (gained <= 0) return;
+            const seat = document.querySelector(
+                `#playersStatus .player-item[data-player-id="${CSS.escape(p.player_id)}"]`);
+            for (let i = 0; i < Math.min(gained, 4); i++) flyBackTo(seat, 150 + i * 200);
+            setTimeout(() => audio.play('draw'), 150);
+        });
+    }
+
     // Lá mới được đánh ra
     if (state.state === 'voting' && state.voting_id !== ui.seenVotingId) {
         ui.seenVotingId = state.voting_id;
         audio.playMeme(state.current_card && state.current_card.content);
         // Lá bay úp từ chỗ người đánh xuống bàn rồi lật ngửa
+        // Lá của mình: bay ngửa từ đúng chỗ trên tay. Lá người khác: bay úp từ chỗ ngồi rồi lật
+        const mine = state.current_card.played_by === gameState.playerId;
+        const pending = hand.pendingPlay;
+        hand.pendingPlay = null;
         const seat = document.querySelector(
             `#playersStatus .player-item[data-player-id="${CSS.escape(state.current_card.played_by)}"]`);
-        flipReveal(document.querySelector('#currentCardContent .meme-card'),
-            { from: seat, duration: 900 });
+        const tableCard = document.querySelector('#currentCardContent .meme-card');
+        const land = () => replayAnimation(document.querySelector('#cardDisplayArea .stage'), 'thud');
+        if (mine && pending && Date.now() - pending.at < 8000) {
+            flipReveal(tableCard, { fromRect: pending.rect, faceUp: true, spin: -14, arc: true, duration: 800, onLand: land });
+        } else {
+            flipReveal(tableCard, { from: seat, spin: 200, arc: true, duration: 1100, onLand: land });
+        }
     }
 
     // Có kết quả bỏ phiếu mới
@@ -971,6 +1157,7 @@ function updateMyHand(state, prev) {
         document.getElementById('handStatus').textContent = state.state === 'game_end'
             ? 'Ván đã kết thúc, sắp vào phòng chờ...'
             : 'Bạn đang xem, ván sau sẽ được chia bài';
+        layoutHand();
         return;
     }
 
@@ -993,7 +1180,7 @@ function updateMyHand(state, prev) {
             ? 'Bạn ra đề trước, rồi đánh lá đầu tiên'
             : `Chờ ${playerName(state, state.current_player_id)} ra đề...`;
     } else if (isMyTurn) {
-        statusEl.textContent = 'Lượt của bạn! Chạm một ảnh hợp đề để đánh';
+        statusEl.textContent = 'Lượt của bạn! Chọn ảnh hợp đề rồi đánh';
     } else {
         statusEl.textContent = `Chờ ${playerName(state, state.current_player_id)} đánh bài...`;
     }
@@ -1003,35 +1190,116 @@ function updateMyHand(state, prev) {
     const prevIds = new Set(((prevMe && prevMe.hand) || []).map(c => c && c.id));
 
     const newCards = [];
-    (myPlayer.hand || []).forEach((card, index) => {
+    const handList = myPlayer.hand || [];
+    // Lá đang chọn vừa rời tay (đã đánh): chọn lá đứng cạnh nó, trừ khi đang rê chuột
+    if (hand.selectedId && !handList.some(c => c && String(c.id) === hand.selectedId)) {
+        const prevHand = (prevMe && prevMe.hand) || [];
+        const oldIndex = prevHand.findIndex(c => c && String(c.id) === hand.selectedId);
+        const keep = hand.source !== 'hover' && oldIndex >= 0 && handList.length;
+        hand.selectedId = keep && handList[Math.min(oldIndex, handList.length - 1)]
+            ? String(handList[Math.min(oldIndex, handList.length - 1)].id) : null;
+        if (!hand.selectedId) hand.source = null;
+    }
+    hand.canPlay = isMyTurn;
+
+    handList.forEach((card, index) => {
         const el = renderMemeCard(card, 'small');
         el.classList.add('card');
+        el.dataset.index = String(index);
+        el.dataset.cardId = String(card && card.id != null ? card.id : 'i' + index);
         if (!isMyTurn) el.classList.add('disabled');
         if (prev && card && !prevIds.has(card.id)) newCards.push(el);
         el.setAttribute('aria-label', `Lá bài ${index + 1}${card && card.name ? ': ' + card.name : ''}`);
-        if (isMyTurn) {
-            el.setAttribute('role', 'button');
-            el.tabIndex = 0;
-            el.onclick = () => playCard(index, el);
-            el.onkeydown = e => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    playCard(index, el);
-                }
-            };
-        } else {
-            el.setAttribute('aria-disabled', 'true');
-        }
+        el.setAttribute('role', 'button');
+        el.tabIndex = 0;
+        if (!isMyTurn) el.setAttribute('aria-disabled', 'true');
+        // Chuột: rê tới là lá chồi lên, bấm là đánh.
+        // Cảm ứng: chạm lần đầu để chọn, chạm lần nữa (hoặc nút "Đánh lá này") để đánh
+        el.addEventListener('pointerenter', e => {
+            if (e.pointerType === 'mouse') selectCard(Number(el.dataset.index), 'hover');
+        });
+        el.onclick = () => {
+            if (el.dataset.cardId !== hand.selectedId) {
+                selectCard(Number(el.dataset.index), hand.source === 'hover' ? 'hover' : 'tap');
+                if (hand.source !== 'hover') return;
+            }
+            if (isMyTurn) playCard(index, el);
+        };
+        el.onkeydown = e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                if (el.dataset.cardId !== hand.selectedId) selectCard(index, 'nav');
+                else if (isMyTurn) playCard(index, el);
+            }
+        };
+        // Chỉ khi đi bằng phím Tab; bấm chuột hay chạm thì để onclick lo
+        el.onfocus = () => {
+            if (el.matches(':focus-visible') && el.dataset.cardId !== hand.selectedId) selectCard(index, 'nav');
+        };
         container.appendChild(el);
     });
 
+    // Xếp quạt ngay, chưa cho trượt, để lá không bay từ góc trái vào mỗi lần vẽ lại
+    container.classList.remove('animate');
+    layoutHand();
+    void container.offsetWidth;
+    container.classList.add('animate');
+
     // Lá mới bốc: lần lượt bay từ chồng bài úp vào tay rồi lật ngửa
-    const pile = document.getElementById('drawPile');
+    const pile = deckSource();
     newCards.forEach((el, i) => {
-        const delay = 250 + i * 220;
-        flipReveal(el, { from: pile, delay, duration: 750 });
+        const delay = 200 + i * 260;
+        flipReveal(el, { from: pile, delay, duration: 950, spin: -18, arc: true });
         bumpDrawPile(delay);
+        markNew(el, delay + 950);
     });
+}
+
+// Chồng bài để bay ra: chồng to giữa bàn nếu đang nhìn thấy, không thì chồng nhỏ cạnh tay bài
+function deckSource() {
+    const big = document.querySelector('.play-table .deck-stack');
+    if (big && big.offsetParent) {
+        const r = big.getBoundingClientRect();
+        if (r.bottom > 0 && r.top < window.innerHeight) return big;
+    }
+    return document.getElementById('drawPile');
+}
+
+// Lá vừa bốc sáng viền và gắn nhãn "MỚI" một lúc cho dễ thấy
+function markNew(el, delay) {
+    if (!effectsOn) return;
+    setTimeout(() => {
+        if (!el.isConnected) return;
+        el.classList.add('just-drawn');
+        setTimeout(() => el.classList.remove('just-drawn'), 2600);
+    }, delay);
+}
+
+// Người khác bốc bài: một lá úp bay từ chồng bài tới chỗ ngồi của họ
+function flyBackTo(target, delay) {
+    const from = deckSource();
+    if (!effectsOn || !from || !target || !document.body.animate) return;
+    const a = from.getBoundingClientRect();
+    const b = target.getBoundingClientRect();
+    if (!a.width || !b.width) return;
+    const ghost = document.createElement('div');
+    ghost.className = 'card-back flying-back';
+    ghost.style.left = `${a.left + a.width / 2 - 23}px`;
+    ghost.style.top = `${a.top + a.height / 2 - 30}px`;
+    document.body.appendChild(ghost);
+    const dx = (b.left + Math.min(b.width, 60) / 2) - (a.left + a.width / 2);
+    const dy = (b.top + b.height / 2) - (a.top + a.height / 2);
+    const anim = ghost.animate([
+        { transform: 'translate(0, 0) rotate(0deg) scale(1)', opacity: 1 },
+        { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 50}px) rotate(-160deg) scale(1.25)`, opacity: 1, offset: 0.5 },
+        { transform: `translate(${dx}px, ${dy}px) rotate(-340deg) scale(0.6)`, opacity: 0.2 }
+    ], { duration: 800, delay, easing: 'cubic-bezier(.3,.6,.4,1)', fill: 'backwards' });
+    anim.onfinish = () => {
+        ghost.remove();
+        replayAnimation(target, 'got-card');
+    };
+    anim.oncancel = () => ghost.remove();
+    setTimeout(() => replayAnimation(from, 'drawing'), delay);
 }
 
 function updateGameStatus(state) {
