@@ -1115,19 +1115,152 @@ select:focus {
 
 /* --- Bàn chơi --- */
 
+/* Bàn chơi: viền gỗ, mặt nỉ xanh có vạch chỉ vàng như bàn sòng bài, nét mực kiểu truyện tranh */
 .play-table {
+    --felt: #1f8f62;
+    --felt-dark: #126b47;
+    --wood: #b06a32;
+    --wood-dark: #7a431c;
     position: relative;
+    isolation: isolate;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
     gap: 40px 56px;
-    min-height: 320px;
-    padding: 24px 30px;
-    background: var(--blue);
+    min-height: 340px;
+    margin-top: 30px;
+    padding: 84px 40px 38px;
+    background:
+        repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.07) 0 3px, transparent 3px 22px),
+        linear-gradient(160deg, var(--wood), var(--wood-dark));
     border: 4px solid var(--ink);
-    border-radius: 26px;
-    box-shadow: var(--shadow-lg);
+    border-radius: 120px;
+    box-shadow: var(--shadow-lg), inset 0 3px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Mặt nỉ nằm trong viền gỗ */
+.play-table::before {
+    content: "";
+    position: absolute;
+    inset: 16px;
+    z-index: -1;
+    border: 3px solid var(--ink);
+    border-radius: 104px;
+    background:
+        radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.5px) 0 0 / 7px 7px,
+        radial-gradient(ellipse at 50% 40%, var(--felt) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+    box-shadow: inset 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* Vạch chỉ vàng chạy quanh mặt bàn */
+.play-table::after {
+    content: "";
+    position: absolute;
+    inset: 32px;
+    z-index: -1;
+    border: 2px dashed rgba(255, 210, 63, 0.55);
+    border-radius: 90px;
+    pointer-events: none;
+}
+
+/* --- Ô tròn báo lượt ở mép trên bàn --- */
+
+.turn-seat {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.turn-seat-ring {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 66px;
+    height: 66px;
+    background: white;
+    border: 4px solid var(--ink);
+    border-radius: 50%;
+    box-shadow: var(--shadow);
+}
+
+/* Vòng sáng quay quanh avatar cho biết đang chờ người này */
+.turn-seat-ring::before {
+    content: "";
+    position: absolute;
+    inset: -9px;
+    border-radius: 50%;
+    border: 4px dashed var(--yellow);
+    animation: seat-spin 6s linear infinite;
+}
+
+.turn-seat .avatar {
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+}
+
+.turn-seat-label {
+    max-width: 220px;
+    padding: 3px 12px;
+    overflow: hidden;
+    background: var(--yellow);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 2px 2px 0 var(--ink);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.turn-seat.me .turn-seat-ring {
+    background: var(--yellow);
+    animation: seat-pulse 1.1s ease-in-out infinite;
+}
+
+.turn-seat.me .turn-seat-ring::before {
+    border-color: var(--pink);
+}
+
+.turn-seat.me .turn-seat-label {
+    background: var(--pink);
+    color: var(--ink);
+}
+
+.turn-seat.voting .turn-seat-ring::before {
+    border-color: white;
+    animation-duration: 12s;
+}
+
+.turn-seat.voting .turn-seat-label {
+    background: white;
+}
+
+.turn-seat.seat-pop .turn-seat-ring {
+    animation: seat-pop 0.45s cubic-bezier(.3, 1.6, .5, 1);
+}
+
+@keyframes seat-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes seat-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+@keyframes seat-pop {
+    0% { transform: scale(0.4) rotate(-20deg); }
+    100% { transform: scale(1) rotate(0); }
 }
 
 #gameScreen[data-state="topic"] .play-table {
@@ -1188,9 +1321,10 @@ select:focus {
 .table-empty p {
     max-width: 260px;
     padding: 16px 20px;
-    background: white;
-    border: 3px dashed var(--ink);
+    background: rgba(0, 0, 0, 0.18);
+    border: 3px dashed rgba(255, 255, 255, 0.7);
     border-radius: 16px;
+    color: white;
     font-weight: 600;
     text-align: center;
 }
@@ -1390,37 +1524,47 @@ select:focus {
     font-weight: 700;
 }
 
-.cards-container {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    align-items: flex-end;
-    gap: 14px 6px;
-    padding: 14px 6px 12px;
+/* Tay bài xòe hình quạt: client.js đặt vị trí từng lá (transform), không cuộn ngang */
+.cards-container.fan {
+    position: relative;
+    min-height: 120px;
+    margin-top: 6px;
+    outline: none;
+}
+
+.cards-container.fan .card {
+    position: absolute;
+    left: 0;
+    bottom: 10px;
+    transform-origin: 50% 100%;
 }
 
 .card {
-    --rot: rotate(0deg);
     position: relative;
     cursor: pointer;
-    transform: var(--rot);
-    transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+    transition: box-shadow 0.2s, filter 0.2s;
 }
 
-.card:nth-child(4n+1) { --rot: rotate(-4deg) translateY(6px); }
-.card:nth-child(4n+2) { --rot: rotate(-1.5deg); }
-.card:nth-child(4n+3) { --rot: rotate(1.5deg); }
-.card:nth-child(4n+4) { --rot: rotate(4deg) translateY(6px); }
+.cards-container.animate .card {
+    transition: transform 0.28s cubic-bezier(.2, .9, .3, 1.25), box-shadow 0.2s, filter 0.2s;
+}
 
-.card:hover:not(.disabled),
+.card.selected {
+    box-shadow: 9px 9px 0 var(--ink);
+}
+
+.my-hand.my-turn .card.selected {
+    outline: 4px solid var(--yellow);
+    outline-offset: 2px;
+}
+
 .card:focus-visible {
-    z-index: 2;
-    transform: translateY(-14px) rotate(0deg);
-    box-shadow: 8px 8px 0 var(--ink);
+    outline: 4px solid var(--blue, #3d7bff);
+    outline-offset: 2px;
 }
 
 .card.disabled {
-    cursor: not-allowed;
+    cursor: pointer;
     filter: saturate(0.75);
 }
 
@@ -1429,9 +1573,88 @@ select:focus {
 }
 
 .card.flying {
-    transform: translateY(-80px) scale(1.08);
-    opacity: 0;
-    transition: transform 0.3s ease-in, opacity 0.3s ease-in;
+    visibility: hidden;
+}
+
+/* Lá vừa bốc: viền sáng nhấp nháy + nhãn MỚI */
+.card.just-drawn {
+    animation: new-glow 0.65s ease-in-out 4 alternate;
+}
+
+.card.just-drawn::after {
+    content: "MỚI";
+    position: absolute;
+    top: -12px;
+    right: -8px;
+    z-index: 5;
+    padding: 2px 8px;
+    background: var(--yellow);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 2px 2px 0 var(--ink);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--ink);
+    transform: rotate(8deg);
+}
+
+@keyframes new-glow {
+    from { box-shadow: 5px 5px 0 var(--ink), 0 0 0 0 rgba(255, 210, 63, 0); }
+    to { box-shadow: 5px 5px 0 var(--ink), 0 0 0 8px rgba(255, 210, 63, 0.9); }
+}
+
+/* Nút < Đánh > dưới tay bài, nhất là cho điện thoại */
+.hand-nav {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.hand-arrow {
+    width: 52px;
+    height: 46px;
+    padding: 0;
+    font-size: 24px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.hand-play {
+    min-width: 170px;
+    height: 46px;
+}
+
+.hand-play:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Lá úp bay từ chồng bài tới chỗ người khác */
+.flying-back {
+    position: fixed;
+    z-index: 900;
+    pointer-events: none;
+    box-shadow: var(--shadow-sm);
+}
+
+.player-item.got-card {
+    animation: pile-bump 0.35s ease-out;
+}
+
+.deck-stack.drawing .d3 {
+    animation: pile-bump 0.3s ease-out;
+}
+
+/* Lá đáp xuống bàn: rung nhẹ */
+.stage.thud {
+    animation: thud 0.35s ease-out;
+}
+
+@keyframes thud {
+    0% { transform: scale(1); }
+    35% { transform: scale(0.97) translateY(3px); }
+    100% { transform: scale(1); }
 }
 
 /* --- Cột phải --- */
@@ -2232,10 +2455,36 @@ body.no-fx *::after {
 
     .play-table {
         min-height: 0;
-        padding: 18px 12px;
+        margin-top: 26px;
+        padding: 70px 18px 30px;
         border-width: 3px;
-        border-radius: 22px;
+        border-radius: 48px;
         box-shadow: 5px 5px 0 var(--ink);
+    }
+
+    .play-table::before {
+        inset: 10px;
+        border-radius: 40px;
+    }
+
+    .play-table::after {
+        inset: 20px;
+        border-radius: 32px;
+    }
+
+    .turn-seat {
+        top: -24px;
+    }
+
+    .turn-seat-ring {
+        width: 54px;
+        height: 54px;
+    }
+
+    .turn-seat .avatar {
+        width: 40px;
+        height: 40px;
+        font-size: 19px;
     }
 
     .deck {
@@ -2273,34 +2522,8 @@ body.no-fx *::after {
         font-size: 20px;
     }
 
-    /* Tay bài cuộn ngang */
-    .cards-container {
-        flex-wrap: nowrap;
-        justify-content: flex-start;
-        gap: 12px;
-        overflow-x: auto;
-        margin: 0 -16px;
-        padding: 16px 16px 14px;
-        scroll-snap-type: x proximity;
-        scroll-padding-left: 16px;
-    }
-
-    .my-hand.my-turn .cards-container {
-        margin: 0 -10px;
-        padding-left: 10px;
-        padding-right: 10px;
-    }
-
-    .card {
-        scroll-snap-align: start;
-    }
-
-    .card:nth-child(n) {
-        --rot: rotate(0deg);
-    }
-
-    .card:nth-child(3n+1) {
-        --rot: rotate(-2deg);
+    .cards-container.fan {
+        margin: 6px 4px 0;
     }
 
     .meme-card.small {
@@ -2314,10 +2537,11 @@ body.no-fx *::after {
         font-size: 11px;
     }
 
+    /* Nổi ở mép trên để không che tay bài và nút < Đánh > ở đáy màn hình */
     .turn-toast {
         position: fixed;
-        top: auto;
-        bottom: 12px;
+        top: 10px;
+        bottom: auto;
         right: 12px;
         left: 12px;
         max-width: none;

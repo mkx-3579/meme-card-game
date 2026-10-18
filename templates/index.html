@@ -200,6 +200,11 @@
                     </div>
 
                     <section class="play-table" aria-label="Bàn chơi">
+                        <!-- Ô tròn ở mép trên bàn: ai đang tới lượt -->
+                        <div id="turnSeat" class="turn-seat hidden" role="status" aria-live="polite">
+                            <div class="turn-seat-ring"><span id="turnSeatAvatar" class="avatar"></span></div>
+                            <span id="turnSeatLabel" class="turn-seat-label"></span>
+                        </div>
                         <div id="cardDisplayArea" class="card-display-area hidden">
                             <div class="card-being-played">
                                 <h3>Lá đang xét</h3>
@@ -237,13 +242,18 @@
                         </div>
                         <div id="playTimer" class="timer play-timer hidden"><div class="timer-fill"></div><span class="timer-text"></span></div>
                         <button id="skipTurnBtn" class="btn btn-white btn-sm skip-btn hidden" type="button" title="Không có ảnh hợp đề? Bỏ lượt và rút thêm 1 lá">Bỏ lượt, rút 1 lá</button>
-                        <div id="myHandCards" class="cards-container"></div>
+                        <div id="myHandCards" class="cards-container fan" tabindex="-1"></div>
+                        <div id="handNav" class="hand-nav hidden">
+                            <button id="handPrevBtn" class="btn btn-white hand-arrow" type="button" aria-label="Lá bên trái">&lt;</button>
+                            <button id="handPlayBtn" class="btn btn-yellow hand-play" type="button" disabled>Đánh lá này</button>
+                            <button id="handNextBtn" class="btn btn-white hand-arrow" type="button" aria-label="Lá bên phải">&gt;</button>
+                        </div>
                     </section>
                 </main>
 
                 <!-- Bình chọn + luật -->
                 <aside class="side-panel">
-                    <!-- Pop-up báo lượt (góc phải; trên điện thoại nổi ở đáy màn hình) -->
+                    <!-- Pop-up báo lượt (góc phải; trên điện thoại nổi ở mép trên màn hình) -->
                     <div id="turnToast" class="turn-toast hidden" role="status" aria-live="polite">
                         <span id="turnToastIcon" class="turn-toast-icon" aria-hidden="true"></span>
                         <div class="turn-toast-body">
