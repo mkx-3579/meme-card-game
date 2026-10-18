@@ -200,6 +200,11 @@
                     </div>
 
                     <section class="play-table" aria-label="Bàn chơi">
+                        <!-- Ô tròn ở mép trên bàn: ai đang tới lượt -->
+                        <div id="turnSeat" class="turn-seat hidden" role="status" aria-live="polite">
+                            <div class="turn-seat-ring"><span id="turnSeatAvatar" class="avatar"></span></div>
+                            <span id="turnSeatLabel" class="turn-seat-label"></span>
+                        </div>
                         <div id="cardDisplayArea" class="card-display-area hidden">
                             <div class="card-being-played">
                                 <h3>Lá đang xét</h3>

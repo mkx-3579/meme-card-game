@@ -916,6 +916,37 @@ function playerName(state, playerId) {
     return p ? p.name : 'Ai đó';
 }
 
+// Ô tròn trên đầu bàn: avatar người đang đánh (lúc chấm thì là người vừa đánh)
+function updateTurnSeat(state) {
+    const seat = document.getElementById('turnSeat');
+    const voting = state.state === 'voting' && state.current_card;
+    const pid = voting ? state.current_card.played_by : state.current_player_id;
+    const player = state.players.find(p => p.player_id === pid);
+    const show = player && (state.state === 'playing' || voting);
+    seat.classList.toggle('hidden', !show);
+    if (!show) {
+        seat.dataset.key = '';
+        return;
+    }
+    const isMe = pid === gameState.playerId;
+    const fresh = makeAvatar(state, player);
+    const avatar = document.getElementById('turnSeatAvatar');
+    avatar.style.background = fresh.style.background;
+    avatar.textContent = fresh.textContent;
+    seat.classList.toggle('me', isMe);
+    seat.classList.toggle('voting', !!voting);
+    document.getElementById('turnSeatLabel').textContent = voting
+        ? (isMe ? 'Lá của bạn đang được chấm' : `Đang chấm lá của ${player.name}`)
+        : (isMe ? 'Lượt bạn đánh!' : `${player.name} đang đánh`);
+    seat.title = document.getElementById('turnSeatLabel').textContent;
+    // Đổi người thì nảy lên một cái cho dễ thấy
+    const key = `${state.state}-${pid}-${state.turn_id || ''}-${state.voting_id || ''}`;
+    if (seat.dataset.key !== key) {
+        seat.dataset.key = key;
+        replayAnimation(seat, 'seat-pop');
+    }
+}
+
 function updateGameScreen(state) {
     const prev = ui.lastState;
     ui.lastState = state;
@@ -930,6 +961,7 @@ function updateGameScreen(state) {
     updatePlayersStatus(state, prev);
     updateSpectators(state);
     updateTurnToast(state);
+    updateTurnSeat(state);
     updateMyHand(state, prev);
     updateGameStatus(state);
 

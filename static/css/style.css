@@ -1115,19 +1115,152 @@ select:focus {
 
 /* --- Bàn chơi --- */
 
+/* Bàn chơi: viền gỗ, mặt nỉ xanh có vạch chỉ vàng như bàn sòng bài, nét mực kiểu truyện tranh */
 .play-table {
+    --felt: #1f8f62;
+    --felt-dark: #126b47;
+    --wood: #b06a32;
+    --wood-dark: #7a431c;
     position: relative;
+    isolation: isolate;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-wrap: wrap;
     gap: 40px 56px;
-    min-height: 320px;
-    padding: 24px 30px;
-    background: var(--blue);
+    min-height: 340px;
+    margin-top: 30px;
+    padding: 84px 40px 38px;
+    background:
+        repeating-linear-gradient(100deg, rgba(255, 255, 255, 0.07) 0 3px, transparent 3px 22px),
+        linear-gradient(160deg, var(--wood), var(--wood-dark));
     border: 4px solid var(--ink);
-    border-radius: 26px;
-    box-shadow: var(--shadow-lg);
+    border-radius: 120px;
+    box-shadow: var(--shadow-lg), inset 0 3px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* Mặt nỉ nằm trong viền gỗ */
+.play-table::before {
+    content: "";
+    position: absolute;
+    inset: 16px;
+    z-index: -1;
+    border: 3px solid var(--ink);
+    border-radius: 104px;
+    background:
+        radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1.5px) 0 0 / 7px 7px,
+        radial-gradient(ellipse at 50% 40%, var(--felt) 0%, var(--felt) 45%, var(--felt-dark) 100%);
+    box-shadow: inset 0 8px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* Vạch chỉ vàng chạy quanh mặt bàn */
+.play-table::after {
+    content: "";
+    position: absolute;
+    inset: 32px;
+    z-index: -1;
+    border: 2px dashed rgba(255, 210, 63, 0.55);
+    border-radius: 90px;
+    pointer-events: none;
+}
+
+/* --- Ô tròn báo lượt ở mép trên bàn --- */
+
+.turn-seat {
+    position: absolute;
+    top: -30px;
+    left: 50%;
+    z-index: 6;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    transform: translateX(-50%);
+    pointer-events: none;
+}
+
+.turn-seat-ring {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 66px;
+    height: 66px;
+    background: white;
+    border: 4px solid var(--ink);
+    border-radius: 50%;
+    box-shadow: var(--shadow);
+}
+
+/* Vòng sáng quay quanh avatar cho biết đang chờ người này */
+.turn-seat-ring::before {
+    content: "";
+    position: absolute;
+    inset: -9px;
+    border-radius: 50%;
+    border: 4px dashed var(--yellow);
+    animation: seat-spin 6s linear infinite;
+}
+
+.turn-seat .avatar {
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+}
+
+.turn-seat-label {
+    max-width: 220px;
+    padding: 3px 12px;
+    overflow: hidden;
+    background: var(--yellow);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    box-shadow: 2px 2px 0 var(--ink);
+    font-size: 13px;
+    font-weight: 800;
+    line-height: 1.4;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.turn-seat.me .turn-seat-ring {
+    background: var(--yellow);
+    animation: seat-pulse 1.1s ease-in-out infinite;
+}
+
+.turn-seat.me .turn-seat-ring::before {
+    border-color: var(--pink);
+}
+
+.turn-seat.me .turn-seat-label {
+    background: var(--pink);
+    color: var(--ink);
+}
+
+.turn-seat.voting .turn-seat-ring::before {
+    border-color: white;
+    animation-duration: 12s;
+}
+
+.turn-seat.voting .turn-seat-label {
+    background: white;
+}
+
+.turn-seat.seat-pop .turn-seat-ring {
+    animation: seat-pop 0.45s cubic-bezier(.3, 1.6, .5, 1);
+}
+
+@keyframes seat-spin {
+    to { transform: rotate(360deg); }
+}
+
+@keyframes seat-pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+@keyframes seat-pop {
+    0% { transform: scale(0.4) rotate(-20deg); }
+    100% { transform: scale(1) rotate(0); }
 }
 
 #gameScreen[data-state="topic"] .play-table {
@@ -1188,9 +1321,10 @@ select:focus {
 .table-empty p {
     max-width: 260px;
     padding: 16px 20px;
-    background: white;
-    border: 3px dashed var(--ink);
+    background: rgba(0, 0, 0, 0.18);
+    border: 3px dashed rgba(255, 255, 255, 0.7);
     border-radius: 16px;
+    color: white;
     font-weight: 600;
     text-align: center;
 }
@@ -2321,10 +2455,36 @@ body.no-fx *::after {
 
     .play-table {
         min-height: 0;
-        padding: 18px 12px;
+        margin-top: 26px;
+        padding: 70px 18px 30px;
         border-width: 3px;
-        border-radius: 22px;
+        border-radius: 48px;
         box-shadow: 5px 5px 0 var(--ink);
+    }
+
+    .play-table::before {
+        inset: 10px;
+        border-radius: 40px;
+    }
+
+    .play-table::after {
+        inset: 20px;
+        border-radius: 32px;
+    }
+
+    .turn-seat {
+        top: -24px;
+    }
+
+    .turn-seat-ring {
+        width: 54px;
+        height: 54px;
+    }
+
+    .turn-seat .avatar {
+        width: 40px;
+        height: 40px;
+        font-size: 19px;
     }
 
     .deck {
